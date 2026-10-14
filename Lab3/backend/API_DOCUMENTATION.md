@@ -12,7 +12,9 @@ The backend currently provides four RPC functions:
 3. Create a GPS-validated recycling check-in.
 4. Submit a recycling activity for verification.
 
-**Deployment status:** Tested locally. Production deployment and end-to-end integration are pending.
+
+**Deployment status:** Phase 3 and Phase 4 database migrations have been deployed to Supabase production. Public recycling search APIs have been tested successfully in production. GPS check-ins, recycling submissions, and rewards have passed local tests. Final authenticated production and CV integration testing remain pending.
+
 
 ### Local development
 
@@ -301,26 +303,149 @@ Actual check-in coordinates must correspond to the selected recycling point.
 - `recycling_point_materials` — material/location associations
 - `check_ins` — GPS-validated check-in records
 - `recycling_actions` — recycling activity submissions
+- `reward_transactions` - reward transaction process
 
-All six tables have Row Level Security enabled.
+All seven tables have Row Level Security enabled.
 
 ---
 
-## 9. Current Limitations
 
-- Production deployment of newer RPC functions and material associations is pending.
-- Recycling location availability is not verified live.
-- Combined GPS and material filtering is not yet implemented.
-- Photo/CV verification integration is pending.
-- Eco Points awarding is not implemented.
-- GPS spoofing protection requires additional measures.
-- API responses should be paginated where appropriate.
-- Final integration and security testing are pending.
+## 9. Rewards, XP and Environmental Impact
 
-## 10. Backend Ownership
+Phase 4 is implemented and deployed.
 
-The backend team maintains the Supabase database, migrations, authentication rules and RPC endpoints.
+### Reward calculation
 
-Frontend developers should use Supabase client methods rather than modifying database tables directly.
+When a trusted backend process changes a recycling activity from
+`Pending` to `Verified`, the database automatically awards:
 
-Coordinate any new database fields or API requirements with the backend team before implementation.
+- 10 Eco Points per verified recycling unit
+- 10 XP per verified recycling unit
+- 1 additional level for every 100 total XP
+
+Example: 12 verified units = 120 Eco Points, 120 XP, Level 2
+for a new user.
+
+Rewards are stored in `reward_transactions`.
+Each recycling activity can receive a reward only once.
+
+Users cannot directly change their Eco Points, XP, level, or create
+reward transactions.
+
+### Environmental Impact API
+
+**Endpoint**
+
+`POST /rest/v1/rpc/get_user_environmental_impact`
+
+**Authentication:** Required
+
+**Request body**
+
+```json
+{
+  "p_user_id": "AUTHENTICATED_USER_UUID"
+}
+```
+
+The user can only retrieve their own environmental impact.
+
+**Response fields**
+
+- `total_verified_actions`
+- `total_recycled_units`
+- `estimated_co2_saved_kg`
+- `tree_equivalents`
+
+Current illustrative estimates:
+
+- 1 recycled unit = 0.1 kg estimated CO2 saved
+- 20 kg estimated CO2 saved = 1 tree equivalent
+
+These values are estimates, not measured environmental outcomes.
+No actual tree planting is performed.
+
+### CV Verification Integration — Nick and Hareish
+
+1. User creates a GPS check-in.
+2. User submits a recycling activity, initially `Pending`.
+3. Frontend uploads the relevant recycling photo through the
+   approved storage workflow.
+4. Hareish's CV model evaluates the submitted image.
+5. Nick connects the verification result to a trusted backend
+   process.
+6. Only a trusted server-side process may update
+   `recycling_actions.verification_status` to `Verified`.
+7. The database trigger automatically creates the reward
+   transaction and updates Eco Points, XP, and level.
+
+IMPORTANT:
+- Never expose Supabase secret/service-role keys to the frontend.
+- Never allow the frontend to mark its own activities as Verified.
+- Do not award rewards directly from frontend code.
+- CV confidence alone must not automatically authorize rewards
+  without agreed verification criteria and server-side checks.
+
+### Remaining Limitations
+
+- Authenticated production APIs require final end-to-end testing.
+- CV and photo-storage integration is pending.
+- Environmental estimates are illustrative.
+- Recycling-point availability is not verified live.
+- Device GPS coordinates can be spoofed.
+- Combined GPS and material filtering is not implemented.
+- Full frontend/backend integration is pending.
+
+
+## 10. Team Responsibilities and Integration Handoff
+
+### Backend — Core Database and APIs
+Owner: Backend Developer
+
+- Supabase PostgreSQL database and migrations
+- Authentication and Row Level Security
+- Recycling-point search and GPS check-ins
+- Recycling activity submission
+- Eco Points, XP, levels, and reward transactions
+- Environmental impact calculations
+- Backend security and API maintenance
+
+### System Integration — Nick
+
+- Connect the frontend to Supabase APIs
+- Integrate Hareish's CV model with backend submissions
+- Implement the trusted server-side CV verification workflow
+- Coordinate image upload and storage integration
+- Connect verification outcomes to the existing reward trigger
+- Coordinate end-to-end integration testing
+
+### Computer Vision — Hareish
+
+- Develop and test the recycling image recognition model
+- Return prediction and confidence information
+- Coordinate the model's input/output format with Nick
+
+### Frontend — Parth and Pranav
+
+- Implement the frontend interface
+- Integrate authentication and recycling workflows with Nick
+- Display recycling locations, check-ins, activities, and rewards
+- Display environmental impact statistics
+
+### Integration Rules
+
+1. Use existing Supabase RPC functions where possible.
+2. Do not write directly to protected backend tables.
+3. Never expose secret or service-role API keys in frontend code.
+4. Only trusted backend processes may approve recycling activities.
+5. The reward trigger automatically awards points after verification.
+6. Coordinate any schema or API changes with the backend owner.
+
+### Handoff Status
+
+- Phase 3: Implemented and deployed.
+- Phase 4: Implemented and deployed.
+- Public production search API: Verified.
+- Authenticated production APIs: Final testing pending.
+- CV integration: Pending.
+- Frontend integration: Pending.

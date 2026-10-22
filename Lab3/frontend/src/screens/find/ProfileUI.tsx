@@ -10,6 +10,8 @@ export default function ProfileUI() {
       links={[
         { label: 'Settings', href: '/you/settings' },
         { label: 'Environmental impact', href: '/you/impact' },
+        { label: 'Admin: milestone verification', href: '/admin/milestones' },
+        { label: 'Admin: moderation queue', href: '/admin/moderation' },
       ]}
     />
   );

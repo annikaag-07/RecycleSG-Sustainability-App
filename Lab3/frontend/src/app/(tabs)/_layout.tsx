@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/shared/theme';
 
@@ -16,14 +17,22 @@ const TABS: { name: string; title: string; icon: IconName }[] = [
 ];
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.textFaint,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        // Explicit height so labels aren't clipped on web; bottom inset keeps it clear of the iOS home indicator.
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          height: 64 + insets.bottom,
+          paddingTop: 4,
+          paddingBottom: 4 + insets.bottom,
+        },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '600', lineHeight: 16 },
         sceneStyle: { backgroundColor: colors.background },
       }}
     >

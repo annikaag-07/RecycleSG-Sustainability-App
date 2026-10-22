@@ -58,23 +58,32 @@ export async function getPointDetail(id: number): Promise<RecyclingPointDetail> 
   };
 }
 
-/** Accepted material names per point, for filtering/labelling search results (no combined search exists). */
-export async function getMaterialsForPoints(pointIds: number[]): Promise<Map<number, string[]>> {
-  const result = new Map<number, string[]>();
+export type PointExtras = { materials: string[]; operatingHours: string | null };
+
+/**
+ * Accepted material names and opening hours per point. The search RPCs return neither, and there is no
+ * combined nearby + material search, so screens fetch these separately to label and filter results.
+ */
+export async function getPointExtras(pointIds: number[]): Promise<Map<number, PointExtras>> {
+  const result = new Map<number, PointExtras>();
   if (pointIds.length === 0) return result;
   // material_types is a many-to-one embed, so PostgREST returns an object; without generated DB types
   // supabase-js infers an array, hence the cast.
   const rows = unwrap(
     await supabase
-      .from('recycling_point_materials')
-      .select('recycling_point_id, material_types(name)')
-      .in('recycling_point_id', pointIds),
-  ) as unknown as { recycling_point_id: number; material_types: { name: string } | null }[];
+      .from('recycling_points')
+      .select('id, operating_hours, recycling_point_materials(material_types(name))')
+      .in('id', pointIds),
+  ) as unknown as {
+    id: number;
+    operating_hours: string | null;
+    recycling_point_materials: { material_types: { name: string } | null }[];
+  }[];
   for (const row of rows) {
-    if (!row.material_types) continue;
-    const list = result.get(row.recycling_point_id) ?? [];
-    list.push(row.material_types.name);
-    result.set(row.recycling_point_id, list);
+    result.set(row.id, {
+      operatingHours: row.operating_hours,
+      materials: row.recycling_point_materials.flatMap((m) => (m.material_types ? [m.material_types.name] : [])),
+    });
   }
   return result;
 }

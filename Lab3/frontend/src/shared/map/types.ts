@@ -1,18 +1,28 @@
 import type { ViewStyle } from 'react-native';
 
 import type { LatLng } from '@/shared/api/types';
+import type { Stream } from '@/shared/materials';
+import { colors } from '@/shared/theme';
 
 export type MapMarker = LatLng & {
   id: number;
   title: string;
-  /** Visual style: blue-bin points vs e-waste points (yellow), as in the mockups. */
-  kind: 'blueBin' | 'eWaste';
+  /** Visual style: blue-bin points (blue), e-waste points (yellow), anything else (grey), as in the mockups. */
+  kind: Stream;
+};
+
+export const MARKER_COLORS: Record<Stream, string> = {
+  blueBin: colors.blueBin,
+  eWaste: colors.eWaste,
+  other: colors.textMuted,
 };
 
 export type RecycleMapProps = {
+  /** Map re-centres whenever this changes (e.g. after an address search). */
   center: LatLng;
   zoom?: number;
   markers: MapMarker[];
+  selectedId?: number | null;
   /** User's approximate position, drawn as a blue dot. */
   user?: LatLng | null;
   /** Optional walking route polyline for DirectionsUI. */

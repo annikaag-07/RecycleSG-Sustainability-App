@@ -149,25 +149,55 @@ have no API.
 
 ---
 
+## Proposed endpoints (frontend is already wired to these)
+
+The Person A screens call these through `src/shared/api/proposed.ts`. They **do not exist yet**: PostgREST answers
+`PGRST202` (function not found), which the app turns into a clear "not available on the server yet" state. Once the
+backend owner adds them with these names and signatures, the screens work with no frontend change. Names and shapes are
+a proposal — if the backend prefers different ones, only `proposed.ts` needs updating.
+
+**Admin role.** The app reads `auth.users.raw_app_meta_data.role` (`'admin'` or `'moderator'`), which only the service
+role can set. That only hides admin UI; every `admin_*` function below must check the role itself, e.g.
+`IF (auth.jwt() -> 'app_metadata' ->> 'role') IS DISTINCT FROM 'admin' THEN RAISE EXCEPTION 'Administrators only'; END IF;`
+(NFR-SEC-09).
+
+| RPC | Args | Returns | Used by | Notes |
+|---|---|---|---|---|
+| `submit_point_report` | `p_recycling_point_id bigint, p_category text, p_description text, p_client_request_id uuid` | `bigint` report id | ReportIssueUI | `p_category` ∈ `full`, `missing_or_damaged`, `wrong_info`, `contaminated`. **Idempotent on `p_client_request_id`** — the app retries queued reports with the same id (NFR-QUAL-06). Status starts `Pending`; must not change what other users see (UC 2.3). Authenticated + verified users only. |
+| `delete_my_account` | — | `void` | SettingsUI | `SECURITY DEFINER`; deletes `auth.users` row for `auth.uid()` (profiles and history cascade). REQ-1.7. |
+| `admin_list_milestones_for_review` | — | rows: `id, name, description, organisation, target_points, current_points, expected_outcome, closing_date, status, evidence_url, evidence_notes, evidence_requested_note, decided_at, decision_reason` | MilestoneVerificationUI | `status` ∈ `Active`, `AwaitingVerification`, `Verified`, `VerificationRejected`. Admin only. |
+| `admin_decide_milestone` | `p_milestone_id bigint, p_decision text, p_reason text, p_expected_status text` | new `status` text | MilestoneVerificationUI | `p_decision` ∈ `verify`, `reject` (reason required), `request_evidence` (note required; stays `AwaitingVerification`). Refuse if current status ≠ `p_expected_status` so two admins can't both decide (UC 7.1.EX.2). Record decision, admin, timestamp, evidence ref; notify contributors on `verify` (REQ-13.11). |
+| `admin_moderation_queue` | — | rows: `target_type ('post'\|'comment'), target_id, author_id, author_name, excerpt, report_count, reasons text[], first_reported_at` | ModerationQueueUI | Ordered by `report_count` desc (REQ-11.3). Moderator or admin. Needs Person B's posts/comments/reports tables. |
+| `admin_moderate_content` | `p_target_type text, p_target_id bigint, p_content_action text, p_user_action text, p_note text` | `void` | ModerationQueueUI | `p_content_action` ∈ `dismiss`, `hide`, `delete`; `p_user_action` ∈ `none`, `warn`, `suspend`, `ban` (REQ-11.4). |
+
+**Kept on the device for now** (no backend storage; the UI says so): favourites (REQ-3.7), notification category
+toggles (REQ-10.3), home location (REQ-2.2), and reports waiting to be sent. Each lives in one small module under
+`src/screens/find/` so it can be swapped for an API call later.
+
+**Backend config request:** reset/verification emails redirect to `http://127.0.0.1:3000` (`site_url`). Please add
+`http://localhost:8081` and `recyclesg://` to `auth.additional_redirect_urls` in `config.toml` so links open the app.
+
+---
+
 ## Screens with no (or only partial) backend support
 
 Raise these with the backend owner.
 
-### Person A (feature/ui-1)
+### Person A (feature/ui-1) — all 11 screens built
 
-| Screen | Backend status | What's missing |
+| Screen | Backend status | What still depends on the backend |
 |---|---|---|
-| LoginUI | ✅ Supabase Auth | Attempt counter / lockout message ("3 attempts left") not exposed; Singpass not configured |
-| RegistrationUI | ✅ Supabase Auth | Email verification disabled locally; guidelines-acceptance record (version + timestamp) not stored; Singpass not configured |
-| MapUI | ✅ `search_nearby_recycling_points` | Material info not in the response (need a second query); availability status is always "Information Outdated" |
-| SearchResultsUI | ⚠️ partial | Material search is **not sorted by distance** and has no lat/lng param; no item→material mapping (e.g. "old laptop" → E-Waste); only blue-bin materials have points |
-| RecyclingPointDetailUI | ⚠️ partial | Works via `recycling_points` select, but `operating_hours` is empty for all points; no favourites endpoint |
-| DirectionsUI | ❌ none (expected) | Routing comes from OneMap / Google Maps on the client — need a OneMap API token |
-| ReportIssueUI | ❌ none | No reports table/RPC, no photo storage |
-| ProfileUI | ⚠️ partial | Own profile + impact work; no streak, badges, items-recycled count (can derive from `recycling_actions`), followers, posts, town |
-| SettingsUI | ❌ mostly none | No notification-preferences or profile-visibility storage; no account-deletion endpoint. Permission toggles are device-only (fine) |
-| MilestoneVerificationUI | ❌ none | No milestones, evidence or verification tables; no admin role |
-| ModerationQueueUI | ❌ none | No posts/comments/reports tables; no admin/moderator role |
+| LoginUI | ✅ Supabase Auth | Attempt counter ("3 attempts left") not exposed — app shows Supabase's rate-limit message instead; Singpass not configured |
+| RegistrationUI | ✅ Supabase Auth | Email verification disabled locally; terms acceptance stored in user metadata (no consent table); Singpass not configured |
+| MapUI | ✅ `search_nearby_recycling_points` + `recycling_points` select | Status is "Information Outdated" and hours are empty for every NEA point; **no seed data locally** |
+| SearchResultsUI | ✅ nearby + client-side material filter | Item→material mapping is a keyword table in the app (`shared/itemCatalog.ts`); only blue-bin materials have points in the dataset |
+| RecyclingPointDetailUI | ✅ `recycling_points` select | `operating_hours` empty; favourites kept on device (no table) |
+| DirectionsUI | ✅ Google Maps hand-off (no key) | In-app route + step list need a OneMap routing token |
+| ReportIssueUI | ⏳ `submit_point_report` (proposed) | Reports are queued on the device until the RPC exists; photo upload needs a storage bucket |
+| ProfileUI | ✅ profile, impact, check-ins, actions | Streak and badges not tracked by the backend; avatar upload needs storage |
+| SettingsUI | ✅ sign-out, password reset; ⏳ `delete_my_account` | Notification prefs + home location on device; profile visibility needs posts on the server |
+| MilestoneVerificationUI | ⏳ `admin_*milestone*` (proposed) | No milestone tables yet; admin role via `app_metadata.role` |
+| ModerationQueueUI | ⏳ `admin_moderation_*` (proposed) | Needs posts/comments/reports tables (Person B + backend) |
 
 ### Person B (feature/ui-2)
 

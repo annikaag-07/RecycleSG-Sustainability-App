@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Platform } from 'react-native';
 import type { Session, User } from '@supabase/supabase-js';
 
+import { flushReportOutbox } from '@/shared/api/proposed';
 import { supabase } from '@/shared/api/supabase';
 
 type AuthState = {
@@ -14,6 +15,12 @@ type AuthState = {
   /** Email confirmed (or confirmation disabled). Unverified accounts can browse but not check in or post (UC 1.1). */
   isVerified: boolean;
   continueAsGuest: () => void;
+  /**
+   * From `app_metadata.role`, which only the service role can set. This only hides admin UI —
+   * the admin RPCs must check the role server-side (NFR-SEC-09).
+   */
+  isAdmin: boolean;
+  isModerator: boolean;
   /** User opened a password-reset link and must choose a new password before continuing (UC 1.2.AC.2). */
   passwordRecovery: boolean;
   finishPasswordRecovery: () => void;
@@ -45,9 +52,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe();
   }, []);
 
+  // Retry reports saved while offline / before the endpoint existed (UC 2.3.EX.4). Best-effort.
+  const userId = session?.user?.id;
+  useEffect(() => {
+    if (userId) flushReportOutbox().catch(() => undefined);
+  }, [userId]);
+
   const value = useMemo<AuthState>(() => {
     const user = session?.user ?? null;
+    const role = user?.app_metadata?.role;
     return {
+      isAdmin: role === 'admin',
+      isModerator: role === 'admin' || role === 'moderator',
       loading,
       session,
       user,

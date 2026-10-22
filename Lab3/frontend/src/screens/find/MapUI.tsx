@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 
 import { api, toApiError, type LatLng } from '@/shared/api';
 import type { AddressResult } from '@/shared/api/onemap';
@@ -12,11 +12,12 @@ import { formatDistance, walkingMinutes } from '@/shared/geo';
 import { openLabel } from '@/shared/hours';
 import { getCurrentFix, getLocationPermission, openAppSettings, requestLocationPermission } from '@/shared/location';
 import { RecycleMap } from '@/shared/map/RecycleMap';
-import { MARKER_COLORS } from '@/shared/map/types';
-import { materialMeta } from '@/shared/materials';
 import { colors, radius, spacing } from '@/shared/theme';
 import { loadNearby, saveNearby } from './nearbyCache';
+import { MaterialTile, PointTypeTile } from './PointBits';
 import { titleCase, toPointView, type PointView } from './pointDisplay';
+import { loadHomeLocation, type HomeLocation } from './settingsStore';
+import { withOrigin } from './useOrigin';
 
 type Origin = LatLng & { label: string; source: 'gps' | 'address'; accuracyMeters?: number | null };
 type Filter = 'all' | 'blueBin' | 'eWaste' | 'openNow';
@@ -42,6 +43,13 @@ export default function MapUI() {
   const [canAskAgain, setCanAskAgain] = useState(true);
   const [origin, setOrigin] = useState<Origin | null>(null);
   const [locError, setLocError] = useState<string>();
+  const { user } = useAuth();
+  const [home, setHome] = useState<HomeLocation | null>(null);
+
+  // Home location from Settings (REQ-2.2) is offered as a starting point when GPS is off.
+  useEffect(() => {
+    if (user) loadHomeLocation(user.id).then(setHome);
+  }, [user]);
 
   const locate = useCallback(async (ask: boolean) => {
     setLocError(undefined);
@@ -74,6 +82,8 @@ export default function MapUI() {
         error={locError}
         onTurnOn={() => (canAskAgain ? locate(true) : openAppSettings())}
         onAddress={(a) => setOrigin({ latitude: a.latitude, longitude: a.longitude, label: shortLabel(a), source: 'address' })}
+        home={home}
+        onHome={() => home && setOrigin({ latitude: home.latitude, longitude: home.longitude, label: home.label, source: 'address' })}
       />
     );
   }
@@ -137,7 +147,7 @@ function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin:
 
   const search = () => {
     const q = query.trim();
-    if (q) router.push({ pathname: '/find/search', params: { q } });
+    if (q) router.push(withOrigin('/find/search', origin, { q }));
   };
 
   return (
@@ -147,7 +157,7 @@ function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin:
           <AppText variant="title" accessibilityRole="header" numberOfLines={1} style={styles.fill}>
             {origin.label}
           </AppText>
-          <IconButton icon="list" label="Nearest points list" onPress={() => router.push('/find/search')} />
+          <IconButton icon="list" label="Nearest points list" onPress={() => router.push(withOrigin('/find/search', origin))} />
           <IconButton icon="crosshair" label="Change search location" onPress={onChangeOrigin} />
         </View>
         <TextField
@@ -229,6 +239,7 @@ function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin:
               canCheckIn={!!user && isVerified && origin.source === 'gps'}
               signedIn={!!user}
               originIsGps={origin.source === 'gps'}
+              origin={origin}
             />
           )}
         </View>
@@ -243,8 +254,10 @@ function PointCard({
   canCheckIn,
   signedIn,
   originIsGps,
+  origin,
 }: {
   point: PointView;
+  origin: Origin;
   offline: boolean;
   canCheckIn: boolean;
   signedIn: boolean;
@@ -261,7 +274,7 @@ function PointCard({
 
   return (
     <View style={styles.card} accessibilityLabel={`${point.title}, ${formatDistance(point.distanceM)} away`}>
-      <Pressable style={styles.cardRow} onPress={() => router.push(`/find/point/${point.id}`)} accessibilityRole="button">
+      <Pressable style={styles.cardRow} onPress={() => router.push(withOrigin(`/find/point/${point.id}`, origin))} accessibilityRole="button">
         <PointTypeTile stream={point.stream} />
         <View style={styles.fill}>
           <AppText variant="bodyStrong" numberOfLines={1}>
@@ -302,7 +315,7 @@ function PointCard({
         <Banner tone="warning">Check-in needs a connection — try again when you're back online.</Banner>
       ) : (
         <View style={styles.actions}>
-          <Button label="Details" variant="secondary" style={styles.fill} onPress={() => router.push(`/find/point/${point.id}`)} />
+          <Button label="Details" variant="secondary" style={styles.fill} onPress={() => router.push(withOrigin(`/find/point/${point.id}`, origin))} />
           <Button
             label={checkInLabel}
             style={styles.fill}
@@ -315,35 +328,21 @@ function PointCard({
   );
 }
 
-function PointTypeTile({ stream }: { stream: PointView['stream'] }) {
-  const icon = stream === 'eWaste' ? 'flash' : 'trash-can-outline';
-  return (
-    <View style={[styles.typeTile, { backgroundColor: MARKER_COLORS[stream] }]}>
-      <MaterialCommunityIcons name={icon} size={20} color={stream === 'eWaste' ? colors.onEWaste : colors.text} />
-    </View>
-  );
-}
-
-function MaterialTile({ name }: { name: string }) {
-  const meta = materialMeta(name);
-  return (
-    <View style={[styles.materialTile, { backgroundColor: meta.color }]} accessibilityLabel={name} accessible>
-      <MaterialCommunityIcons name={meta.icon} size={16} color={colors.text} />
-    </View>
-  );
-}
-
 /** UC 2.1.EX.3 / mockup "Location is switched off": discovery still works by address; check-in does not. */
 function LocationOff({
   canAskAgain,
   error,
   onTurnOn,
   onAddress,
+  home,
+  onHome,
 }: {
   canAskAgain: boolean;
   error?: string;
   onTurnOn: () => void;
   onAddress: (a: AddressResult) => void;
+  home: HomeLocation | null;
+  onHome: () => void;
 }) {
   const [searching, setSearching] = useState(false);
   const [q, setQ] = useState('');
@@ -384,6 +383,7 @@ function LocationOff({
               <Banner tone="info">Location is blocked for this site. Allow it in your browser's site settings, then reload.</Banner>
             )}
             <Button label={canAskAgain || Platform.OS === 'web' ? 'Turn on location' : 'Open settings'} onPress={onTurnOn} />
+            {home && <Button label={`Use home: ${home.label}`} variant="secondary" onPress={onHome} />}
             <Button label="Search by address instead" variant="secondary" onPress={() => setSearching(true)} />
           </>
         ) : (

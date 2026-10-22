@@ -35,8 +35,15 @@ src/
     map/            <RecycleMap> — react-native-maps on native, Leaflet on web, OneMap "Night" tiles
 ```
 
-Every screen file in `screens/` currently renders a `PlaceholderScreen`. Replace the file's contents when you build it,
-keeping the default export and file name so the route keeps working.
+**Status:** all 11 Person A screens in `screens/find/` are built. The 11 Person B screens in `screens/earn/` still render
+a `PlaceholderScreen` — replace each file's contents when you build it, keeping the default export and file name so the
+route keeps working.
+
+Shared helpers Person B can reuse: `@/shared/location` (permission + GPS fix), `@/shared/geo` (distance/format),
+`@/shared/materials` (icons, blue-bin vs e-waste), `@/shared/hours`, `api.checkins.*` (check-in / submit activity),
+and `screens/find/useOrigin.ts` if you need the same origin as Find. Admin role: `useAuth().isAdmin / isModerator`.
+
+Features without a backend endpoint go through `api.proposed.*` — see "Proposed endpoints" in `/API_ENDPOINTS.md`.
 
 ## Conventions
 

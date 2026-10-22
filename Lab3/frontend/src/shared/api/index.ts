@@ -4,8 +4,10 @@ import * as checkins from './checkins';
 import * as onemap from './onemap';
 import * as points from './points';
 import * as profile from './profile';
+import * as proposed from './proposed';
 
-export const api = { auth, checkins, onemap, points, profile };
+/** `api.proposed.*` targets endpoints the backend doesn't have yet — see API_ENDPOINTS.md. */
+export const api = { auth, checkins, onemap, points, profile, proposed };
 
 export { supabase } from './supabase';
 export { ApiError, toApiError } from './errors';

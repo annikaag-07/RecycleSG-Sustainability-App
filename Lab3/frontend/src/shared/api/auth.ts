@@ -14,18 +14,38 @@ export function emailProblem(email: string): string | null {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? null : 'Enter a valid email address';
 }
 
-/** `session` is null when email confirmation is required — show "check your inbox" (UC 1.1 step 9). */
-export async function signUp(email: string, password: string, displayName?: string) {
+/** Version of the Community Guidelines and Privacy Terms shown at sign-up (UC 1.1 postcondition 2). */
+export const TERMS_VERSION = '2026-09';
+
+/** Local backend `auth.email.otp_expiry` (config.toml) — reset and verification links last 1 hour. */
+export const EMAIL_LINK_EXPIRY_MINUTES = 60;
+
+export type SignUpResult =
+  | { status: 'active' } // signed in straight away (email confirmation disabled)
+  | { status: 'pendingVerification' } // verification email sent, no session yet
+  | { status: 'alreadyRegistered' };
+
+export async function signUp(email: string, password: string, opts: { displayName?: string } = {}): Promise<SignUpResult> {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
     options: {
-      data: displayName ? { display_name: displayName } : undefined,
+      // The backend has no consent table yet, so acceptance is recorded in auth user metadata.
+      data: {
+        ...(opts.displayName ? { display_name: opts.displayName } : {}),
+        terms_version: TERMS_VERSION,
+        terms_accepted_at: new Date().toISOString(),
+      },
       emailRedirectTo: Linking.createURL('/'),
     },
   });
-  if (error) throw toApiError(error);
-  return data;
+  if (error) {
+    if (error.code === 'user_already_exists') return { status: 'alreadyRegistered' };
+    throw toApiError(error);
+  }
+  // With confirmations on, Supabase hides existing accounts by returning a user with no identities.
+  if (data.user && data.user.identities?.length === 0) return { status: 'alreadyRegistered' };
+  return { status: data.session ? 'active' : 'pendingVerification' };
 }
 
 export async function signIn(email: string, password: string) {
@@ -41,7 +61,7 @@ export async function signOut() {
 
 export async function sendPasswordReset(email: string) {
   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-    redirectTo: Linking.createURL('/'),
+    redirectTo: Linking.createURL('/login'),
   });
   if (error) throw toApiError(error);
 }

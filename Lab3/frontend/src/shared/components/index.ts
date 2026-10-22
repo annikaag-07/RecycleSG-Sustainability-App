@@ -2,6 +2,7 @@ export { AppText } from './AppText';
 export { Banner } from './Banner';
 export { Button } from './Button';
 export { Card } from './Card';
+export { Checkbox } from './Checkbox';
 export { Chip } from './Chip';
 export { EmptyState } from './EmptyState';
 export { Header } from './Header';

@@ -189,3 +189,59 @@ export type Milestone = Pick<
 export function listMilestones() {
   return rpc<Milestone[]>('list_milestones');
 }
+
+/** What a contribution did. `accepted_amount` is less than asked when the milestone needed less (UC 3.3.AC.3). */
+export type ContributionResult = {
+  accepted_amount: number;
+  available_eco_points: number;
+  current_points: number;
+  status: MilestoneStatus;
+};
+
+/**
+ * Proposed RPC: contribute_to_milestone(p_milestone_id, p_amount, p_client_request_id) → ContributionResult.
+ * One transaction, idempotent on p_client_request_id, so a retry never deducts twice (UC 3.3.EX.3/EX.4, NFR-QUAL-11).
+ */
+export async function contributeToMilestone(milestoneId: number, amount: number, clientRequestId: string): Promise<ContributionResult> {
+  // A function returning TABLE comes back as an array of one row.
+  const result = await rpc<ContributionResult | ContributionResult[]>('contribute_to_milestone', {
+    p_milestone_id: milestoneId,
+    p_amount: amount,
+    p_client_request_id: clientRequestId,
+  });
+  return Array.isArray(result) ? result[0]! : result;
+}
+
+export type MilestoneContribution = { id: number; amount: number; created_at: string };
+
+/** Proposed RPC: list_my_milestone_contributions(p_milestone_id) → the caller's own contributions, newest first (UC 3.3.AC.4). */
+export function listMyContributions(milestoneId: number) {
+  return rpc<MilestoneContribution[]>('list_my_milestone_contributions', { p_milestone_id: milestoneId });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Leaderboard (UC 4.2) — Person B
+// ---------------------------------------------------------------------------------------------
+
+export type LeaderboardPeriod = 'week' | 'all_time';
+export type LeaderboardScope = 'global' | 'friends';
+
+export type LeaderboardRow = {
+  /** Null when the caller has no verified points in the period, so isn't ranked. */
+  rank: number | null;
+  user_id: string;
+  display_name: string;
+  /** Town only, never a precise location (NFR-SEC-05). */
+  town: string | null;
+  level: number;
+  points: number;
+  is_me: boolean;
+};
+
+/**
+ * Proposed RPC: get_leaderboard(p_period, p_scope, p_limit) → up to p_limit ranked rows, then the caller's own row
+ * if it isn't among them (UC 4.2.AC.3).
+ */
+export function getLeaderboard(period: LeaderboardPeriod, scope: LeaderboardScope, limit: number) {
+  return rpc<LeaderboardRow[]>('get_leaderboard', { p_period: period, p_scope: scope, p_limit: limit });
+}

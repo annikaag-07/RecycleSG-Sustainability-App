@@ -4,11 +4,12 @@ import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
 import { api, toApiError, type EnvironmentalImpact, type MaterialType, type Profile, type RecyclingAction } from '@/shared/api';
-import type { Milestone, MilestoneStatus } from '@/shared/api/proposed';
+import type { Milestone } from '@/shared/api/proposed';
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, EmptyState, Header, Screen } from '@/shared/components';
 import { colors, radius, spacing } from '@/shared/theme';
 import { MaterialTile } from '@/screens/find/PointBits';
+import { MilestoneProgress, MilestoneStatusBadge, formatClosingDate, milestoneStatusLabel } from './MilestoneBits';
 
 type Data = { profile: Profile; impact: EnvironmentalImpact; actions: RecyclingAction[]; materials: MaterialType[] };
 type Milestones =
@@ -171,25 +172,13 @@ function verifiedItemsByMaterial(actions: RecyclingAction[], materials: Material
     .sort((a, b) => b.items - a.items);
 }
 
-// NFR-QUAL-12: open, awaiting-verification and verified milestones must be clearly told apart — by text, not colour alone.
-const STATUS: Record<MilestoneStatus, { label: string; color: string }> = {
-  Active: { label: 'Open', color: colors.success },
-  AwaitingVerification: { label: 'Awaiting verification', color: colors.warning },
-  Verified: { label: 'Verified', color: colors.blueBin },
-  VerificationRejected: { label: 'Not verified', color: colors.danger },
-};
-
 function MilestoneRow({ milestone: m, onPress }: { milestone: Milestone; onPress: () => void }) {
-  const status = STATUS[m.status];
-  const progress = m.target_points > 0 ? Math.min(1, m.current_points / m.target_points) : 0;
-  const closes = m.closing_date
-    ? ` · closes ${new Date(m.closing_date).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })}`
-    : '';
+  const closes = m.closing_date ? ` · closes ${formatClosingDate(m.closing_date)}` : '';
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${m.name}, ${status.label}. ${m.current_points} of ${m.target_points} Eco Points.`}
+      accessibilityLabel={`${m.name}, ${milestoneStatusLabel(m.status)}. ${m.current_points} of ${m.target_points} Eco Points.`}
       style={({ pressed }) => [styles.milestone, pressed && { opacity: 0.7 }]}
     >
       <View style={styles.milestoneHead}>
@@ -199,16 +188,10 @@ function MilestoneRow({ milestone: m, onPress }: { milestone: Milestone; onPress
             {m.organisation}
           </AppText>
         </View>
-        <View style={[styles.badge, { borderColor: status.color }]}>
-          <AppText variant="caption" style={{ color: status.color }}>
-            {status.label}
-          </AppText>
-        </View>
+        <MilestoneStatusBadge status={m.status} />
         <Feather name="chevron-right" size={20} color={colors.textMuted} />
       </View>
-      <View style={styles.barTrack}>
-        <View style={[styles.barFill, { width: `${progress * 100}%` }]} />
-      </View>
+      <MilestoneProgress milestone={m} />
       <AppText variant="small" color="textMuted">
         {m.current_points} of {m.target_points} Eco Points{closes}
       </AppText>
@@ -238,7 +221,4 @@ const styles = StyleSheet.create({
   materialRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   milestone: { gap: spacing.sm, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   milestoneHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  badge: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },
-  barTrack: { height: 8, borderRadius: 4, backgroundColor: colors.surfaceRaised, overflow: 'hidden' },
-  barFill: { height: '100%', backgroundColor: colors.success },
 });

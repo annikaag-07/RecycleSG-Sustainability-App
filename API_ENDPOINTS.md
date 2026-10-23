@@ -170,6 +170,9 @@ role can set. That only hides admin UI; every `admin_*` function below must chec
 | `admin_moderation_queue` | — | rows: `target_type ('post'\|'comment'), target_id, author_id, author_name, excerpt, report_count, reasons text[], first_reported_at` | ModerationQueueUI | Ordered by `report_count` desc (REQ-11.3). Moderator or admin. Needs Person B's posts/comments/reports tables. |
 | `admin_moderate_content` | `p_target_type text, p_target_id bigint, p_content_action text, p_user_action text, p_note text` | `void` | ModerationQueueUI | `p_content_action` ∈ `dismiss`, `hide`, `delete`; `p_user_action` ∈ `none`, `warn`, `suspend`, `ban` (REQ-11.4). |
 | `list_milestones` | — | rows: `id, name, description, organisation, target_points, current_points, expected_outcome, closing_date, status` | EnvironmentalImpactUI | Signed-in users, read-only. Active first (soonest `closing_date`), then `AwaitingVerification`, `Verified`. No evidence or decision fields (those stay admin-only). Contributing is a separate RPC, to be proposed with MilestoneContributionUI. |
+| `contribute_to_milestone` | `p_milestone_id bigint, p_amount integer, p_client_request_id uuid` | one row: `accepted_amount integer, available_eco_points integer, current_points integer, status text` | MilestoneContributionUI | Verified users. Takes only what the target still needs: `accepted_amount = least(p_amount, target_points - current_points)`, the rest stays in the balance (UC 3.3.AC.3). Deducts `available_eco_points` only, never `eco_points` (lifetime). Raise `Insufficient Eco Points` if `p_amount` > available, `Milestone unavailable` if not `Active` or past `closing_date`. Contribution row, balance deduction and progress update in one transaction (EX.3). **Idempotent on `p_client_request_id`**: a repeat returns the first result and deducts nothing (EX.4, NFR-QUAL-11). Reaching the target sets `status = 'AwaitingVerification'` (step 11). |
+| `list_my_milestone_contributions` | `p_milestone_id bigint` | rows: `id, amount, created_at` | MilestoneContributionUI | Caller's own contributions to that milestone, newest first (UC 3.3.AC.4). Optional — the screen hides the history if it's missing. |
+| `get_leaderboard` | `p_period text, p_scope text, p_limit integer` | rows: `rank integer \| null, user_id uuid, display_name text, town text \| null, level integer, points integer, is_me boolean` | LeaderboardUI | `p_period` ∈ `week` (verified Eco Points from `reward_transactions` since Monday 00:00 Singapore time), `all_time` (`profiles.eco_points`). `p_scope` ∈ `global`, `friends` (people the caller follows, plus the caller — needs a follows table). Users with 0 points in the period are left out. Order by points desc; equal totals share a rank, earlier `profiles.created_at` first (UC 4.2.AC.4). After the top `p_limit`, append the caller's own row if it isn't in them, with `rank` null when unranked (AC.3). Public fields only — never email, username or location; town only once there is one (NFR-SEC-05). `SECURITY DEFINER` (profiles RLS hides other rows). Callable by `anon` for `global` so guests can see the board (EX.1). |
 
 **Kept on the device for now** (no backend storage; the UI says so): favourites (REQ-3.7), notification category
 toggles (REQ-10.3), home location (REQ-2.2), and reports waiting to be sent. Each lives in one small module under
@@ -200,7 +203,7 @@ Raise these with the backend owner.
 | MilestoneVerificationUI | ⏳ `admin_*milestone*` (proposed) | No milestone tables yet; admin role via `app_metadata.role` |
 | ModerationQueueUI | ⏳ `admin_moderation_*` (proposed) | Needs posts/comments/reports tables (Person B + backend) |
 
-### Person B (feature/ui-2) — 4 of 11 screens built
+### Person B (feature/ui-2) — 6 of 11 screens built
 
 | Screen | Backend status | What's missing |
 |---|---|---|
@@ -208,10 +211,10 @@ Raise these with the backend owner.
 | LogRecyclingUI | ⚠️ partial — **built** | `submit_recycling_activity` works; **no photo upload** (button shown disabled, like ReportIssueUI); offline submit not queued, same 15-min reason |
 | RewardUI | ⚠️ partial — **built** | Actions stay `Pending` (no verifier), so the screen shows points as pending, not earned; Verified/Rejected states work once something verifies; no quest/streak/badge progress |
 | EnvironmentalImpactUI | ⚠️ partial — **built** | Balance, impact and per-material stats work; milestone list waits for `list_milestones` (proposed) |
-| MilestoneContributionUI | ❌ none | No contribute RPC / milestone tables |
+| MilestoneContributionUI | ⏳ `list_milestones`, `contribute_to_milestone`, `list_my_milestone_contributions` (proposed) — **built** | Shows "not set up on the server yet" until the RPCs exist |
 | QuestsUI | ❌ none | No quests or streaks |
 | CollectionUI | ❌ none | No badges |
-| LeaderboardUI | ❌ none | RLS blocks reading other profiles; no ranking RPC |
+| LeaderboardUI | ⏳ `get_leaderboard` (proposed) — **built** | RLS blocks reading other profiles, so it needs the `SECURITY DEFINER` RPC; Friends needs a follows table; no `town` column yet; tapping a row will open another user's profile once UC 5.2 exists |
 | FeedUI | ❌ none | No posts/follows |
 | PostDetailUI | ❌ none | No posts/comments/likes |
 | PostComposerUI | ❌ none | No posts table, no image storage |

@@ -174,3 +174,18 @@ export function moderateContent(item: Pick<ModerationItem, 'target_type' | 'targ
     p_note: note,
   });
 }
+
+// ---------------------------------------------------------------------------------------------
+// Environmental milestones for users (UC 3.3) — Person B
+// ---------------------------------------------------------------------------------------------
+
+/** What a signed-in user sees of a milestone (UC 3.3 step 2). No evidence or admin decision fields. */
+export type Milestone = Pick<
+  MilestoneForReview,
+  'id' | 'name' | 'description' | 'organisation' | 'target_points' | 'current_points' | 'expected_outcome' | 'closing_date' | 'status'
+>;
+
+/** Proposed RPC: list_milestones() → Milestone[], Active first (soonest closing), then AwaitingVerification, Verified. */
+export function listMilestones() {
+  return rpc<Milestone[]>('list_milestones');
+}

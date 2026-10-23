@@ -35,9 +35,11 @@ src/
     map/            <RecycleMap> — react-native-maps on native, Leaflet on web, OneMap "Night" tiles
 ```
 
-**Status:** all 11 Person A screens in `screens/find/` are built. The 11 Person B screens in `screens/earn/` still render
-a `PlaceholderScreen` — replace each file's contents when you build it, keeping the default export and file name so the
-route keeps working.
+**Status:** all 11 Person A screens in `screens/find/` are built. Person B has built CheckInUI, LogRecyclingUI, RewardUI
+and EnvironmentalImpactUI; the other 7 in `screens/earn/` still render a `PlaceholderScreen` — replace each file's contents
+when you build it, keeping the default export and file name so the route keeps working. The check-in and reward rules the
+server enforces (100 m radius, 30-min cooldown, 10 a day, 15-min log window, 10 points per item) are copied into
+`screens/earn/rules.ts`; update it if the backend changes them.
 
 Shared helpers Person B can reuse: `@/shared/location` (permission + GPS fix), `@/shared/geo` (distance/format),
 `@/shared/materials` (icons, blue-bin vs e-waste), `@/shared/hours`, `api.checkins.*` (check-in / submit activity),

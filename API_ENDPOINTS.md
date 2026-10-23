@@ -169,6 +169,7 @@ role can set. That only hides admin UI; every `admin_*` function below must chec
 | `admin_decide_milestone` | `p_milestone_id bigint, p_decision text, p_reason text, p_expected_status text` | new `status` text | MilestoneVerificationUI | `p_decision` ∈ `verify`, `reject` (reason required), `request_evidence` (note required; stays `AwaitingVerification`). Refuse if current status ≠ `p_expected_status` so two admins can't both decide (UC 7.1.EX.2). Record decision, admin, timestamp, evidence ref; notify contributors on `verify` (REQ-13.11). |
 | `admin_moderation_queue` | — | rows: `target_type ('post'\|'comment'), target_id, author_id, author_name, excerpt, report_count, reasons text[], first_reported_at` | ModerationQueueUI | Ordered by `report_count` desc (REQ-11.3). Moderator or admin. Needs Person B's posts/comments/reports tables. |
 | `admin_moderate_content` | `p_target_type text, p_target_id bigint, p_content_action text, p_user_action text, p_note text` | `void` | ModerationQueueUI | `p_content_action` ∈ `dismiss`, `hide`, `delete`; `p_user_action` ∈ `none`, `warn`, `suspend`, `ban` (REQ-11.4). |
+| `list_milestones` | — | rows: `id, name, description, organisation, target_points, current_points, expected_outcome, closing_date, status` | EnvironmentalImpactUI | Signed-in users, read-only. Active first (soonest `closing_date`), then `AwaitingVerification`, `Verified`. No evidence or decision fields (those stay admin-only). Contributing is a separate RPC, to be proposed with MilestoneContributionUI. |
 
 **Kept on the device for now** (no backend storage; the UI says so): favourites (REQ-3.7), notification category
 toggles (REQ-10.3), home location (REQ-2.2), and reports waiting to be sent. Each lives in one small module under
@@ -199,14 +200,14 @@ Raise these with the backend owner.
 | MilestoneVerificationUI | ⏳ `admin_*milestone*` (proposed) | No milestone tables yet; admin role via `app_metadata.role` |
 | ModerationQueueUI | ⏳ `admin_moderation_*` (proposed) | Needs posts/comments/reports tables (Person B + backend) |
 
-### Person B (feature/ui-2)
+### Person B (feature/ui-2) — 4 of 11 screens built
 
 | Screen | Backend status | What's missing |
 |---|---|---|
-| CheckInUI | ✅ `create_gps_checkin` | No "candidate points / tie" endpoint (use nearby search with small radius); cooldown remaining time not returned |
-| LogRecyclingUI | ⚠️ partial | `submit_recycling_activity` works; **no photo upload** |
-| RewardUI | ⚠️ partial | Actions stay `Pending` (no verifier), so nothing is awarded yet; no quest/streak/badge progress |
-| EnvironmentalImpactUI | ⚠️ partial | Personal impact stats only; no milestone list |
+| CheckInUI | ✅ `create_gps_checkin` — **built** | Candidates/ties come from nearby search (100 m) + local Haversine; cooldown and daily limit are worked out from `check_ins` history. Radius, cooldown, limits are copied from the SQL into `screens/earn/rules.ts` because no endpoint exposes them. Offline check-in isn't queued: the server timestamps on arrival and only allows a log within 15 min |
+| LogRecyclingUI | ⚠️ partial — **built** | `submit_recycling_activity` works; **no photo upload** (button shown disabled, like ReportIssueUI); offline submit not queued, same 15-min reason |
+| RewardUI | ⚠️ partial — **built** | Actions stay `Pending` (no verifier), so the screen shows points as pending, not earned; Verified/Rejected states work once something verifies; no quest/streak/badge progress |
+| EnvironmentalImpactUI | ⚠️ partial — **built** | Balance, impact and per-material stats work; milestone list waits for `list_milestones` (proposed) |
 | MilestoneContributionUI | ❌ none | No contribute RPC / milestone tables |
 | QuestsUI | ❌ none | No quests or streaks |
 | CollectionUI | ❌ none | No badges |

@@ -3,6 +3,7 @@
 /data/*.geojson
 /data/*.json
 /data/*.csv
+!/data/recycling_points.csv
 /supabase/seed.sql
 
 # Credentials and local environment files

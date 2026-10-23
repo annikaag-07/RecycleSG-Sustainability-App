@@ -53,3 +53,27 @@ print("SQL file generated:", OUTPUT)
 print("File size (MB):", round(
     OUTPUT.stat().st_size / (1024 * 1024), 2
 ))
+
+
+# Link every imported recycling point to the four
+# materials accepted by the NEA general recycling bins.
+
+with OUTPUT.open("a", encoding="utf-8") as file:
+    file.write("\n-- Link recycling points to accepted materials\n")
+
+    file.write("""
+INSERT INTO public.recycling_point_materials (
+    recycling_point_id,
+    material_type_id
+)
+SELECT
+    rp.id,
+    mt.id
+FROM public.recycling_points rp
+CROSS JOIN public.material_types mt
+WHERE rp.source = 'NEA Recycling Bins'
+  AND mt.name IN ('Plastic', 'Paper', 'Glass', 'Metal')
+ON CONFLICT DO NOTHING;
+""")
+
+print("Material association SQL added.")

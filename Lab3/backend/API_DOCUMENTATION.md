@@ -449,3 +449,114 @@ Owner: Backend Developer
 - Authenticated production APIs: Final testing pending.
 - CV integration: Pending.
 - Frontend integration: Pending.
+
+
+---
+
+## Additional Backend Features
+
+All endpoints use Supabase RPC.
+
+Base URL:
+https://ihrgxedwftfzzohqpnnu.supabase.co/rest/v1/rpc/
+
+### Leaderboard
+
+**RPC:** `get_leaderboard`
+
+Parameters:
+- `p_limit`: integer (optional, default 10, maximum 100)
+
+Returns:
+- rank
+- username
+- display_name
+- level
+- eco_points
+
+Access: Public (publishable/anon key).
+
+### Milestones
+
+**RPC:** `list_milestones`
+
+Returns active and other publicly visible milestone records.
+
+Access: Public.
+
+**RPC:** `contribute_to_milestone`
+
+Parameters:
+- `p_milestone_id`: bigint
+- `p_amount`: integer
+- `p_client_request_id`: UUID
+
+Access: Authenticated.
+
+**RPC:** `list_my_milestone_contributions`
+
+Returns the authenticated user's milestone contributions.
+
+Access: Authenticated.
+
+### Quests
+
+**Table:** `quests`
+
+Publicly readable active quests.
+
+**Table:** `user_quest_progress`
+
+Authenticated users can read their own progress.
+
+**RPC:** `claim_quest_reward`
+
+Parameters:
+- `p_quest_id`: bigint
+- `p_period_start`: date (`YYYY-MM-DD`)
+
+Access: Authenticated.
+
+Quest progress updates automatically when a recycling
+activity transitions to Verified.
+
+### Badges
+
+**Table:** `badges`
+
+Publicly readable badge definitions.
+
+**Table:** `user_badges`
+
+Authenticated users can read their own earned badges.
+
+Badges are awarded automatically after verified recycling
+activity thresholds of 1, 10, 50 and 100.
+
+### Community Feed
+
+**RPC:** `get_community_feed`
+
+Parameters:
+- `p_limit`: integer (optional, default 20, maximum 100)
+
+Returns:
+- activity_id
+- username
+- display_name
+- material
+- quantity
+- recycled_at
+
+Access: Public.
+
+Only verified recycling activities are displayed.
+
+### Security
+
+- Do not put secret/service-role keys in frontend code.
+- Use authenticated user JWTs for protected RPCs.
+- Clients cannot directly modify quest progress or badges.
+- Quest rewards cannot be claimed twice.
+- Recycling verification must be performed by a trusted
+  backend process, not directly by the frontend.

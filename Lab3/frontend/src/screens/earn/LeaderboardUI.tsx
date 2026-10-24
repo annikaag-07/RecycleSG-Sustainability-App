@@ -2,9 +2,9 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 
-import { api, toApiError, type LeaderboardEntry, type Profile } from '@/shared/api';
+import { api, toApiError, type LeaderboardEntry, type LeaderboardPeriod, type Profile } from '@/shared/api';
 import { useAuth } from '@/shared/auth/AuthProvider';
-import { AppText, Banner, Button, EmptyState, Header, Screen } from '@/shared/components';
+import { AppText, Banner, Button, Chip, EmptyState, Header, Screen } from '@/shared/components';
 import { colors, radius, spacing } from '@/shared/theme';
 import { Avatar, personName } from './Avatar';
 
@@ -16,7 +16,8 @@ type Row = {
   key: string;
   name: string;
   level: number;
-  points: number;
+  /** Null when it isn't known: your weekly points when you're below the list. */
+  points: number | null;
   isMe: boolean;
 };
 
@@ -27,26 +28,36 @@ type Load =
   | { kind: 'ready'; rows: Row[]; me: Row | null };
 
 /**
- * UC 4.2: where you stand. The server ranks everyone by lifetime Eco Points; it has no weekly or friends board yet, so
- * those selectors (UC 4.2 step 2, AC.1, AC.2) aren't shown.
+ * UC 4.2: where you stand, this week or all time. There's no friends board (UC 4.2.AC.2): the server has no follows.
  */
 export default function LeaderboardUI() {
   const { user } = useAuth();
+  // UC 4.2 step 2: This week first.
+  const [period, setPeriod] = useState<LeaderboardPeriod>('week');
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
+  // Set when the server has no weekly board yet, so the all-time board is shown instead.
+  const [weekMissing, setWeekMissing] = useState(false);
 
   const fetchBoard = useCallback(async () => {
-    setLoad((l) => (l.kind === 'ready' ? l : { kind: 'loading' }));
+    setLoad({ kind: 'loading' });
     try {
       const [entries, profile] = await Promise.all([
-        api.community.getLeaderboard(LIMIT),
+        api.community.getLeaderboard(LIMIT, period),
         user ? api.profile.getMyProfile(user.id) : Promise.resolve(null),
       ]);
-      setLoad({ kind: 'ready', ...toRows(entries, profile) });
+      if (period === 'week') setWeekMissing(false);
+      setLoad({ kind: 'ready', ...toRows(entries, profile, period) });
     } catch (e) {
+      const err = toApiError(e);
+      if (err.code === 'not_available' && period === 'week') {
+        setWeekMissing(true);
+        setPeriod('all_time');
+        return;
+      }
       // UC 4.2.EX.3: an error and a retry, never a stale board shown as current.
-      setLoad({ kind: 'error', message: toApiError(e).message });
+      setLoad({ kind: 'error', message: err.message });
     }
-  }, [user]);
+  }, [period, user]);
 
   useFocusEffect(
     useCallback(() => {
@@ -57,20 +68,31 @@ export default function LeaderboardUI() {
   return (
     <Screen scroll>
       <Header title="Leaderboard" />
-      <AppText color="textMuted">All time · lifetime Eco Points</AppText>
+      <View style={styles.chips} accessibilityRole="tablist" accessibilityLabel="Time period">
+        <Chip label="This week" selected={period === 'week'} onPress={() => setPeriod('week')} />
+        <Chip label="All time" selected={period === 'all_time'} onPress={() => setPeriod('all_time')} />
+      </View>
+      <AppText color="textMuted">
+        {period === 'week' ? 'Eco Points earned since Monday, Singapore time' : 'Lifetime Eco Points'}
+      </AppText>
+      {weekMissing && period === 'all_time' && (
+        <AppText variant="small" color="textFaint">
+          The weekly board isn't on the server yet, so this is the all-time board.
+        </AppText>
+      )}
       {!user && (
         // UC 4.2.EX.1: guests can look, but they're told they aren't on it (NFR-BR-01).
         <Banner tone="info" title="You're browsing as a guest">
           Only people with an account earn Eco Points and appear here.
         </Banner>
       )}
-      <Board load={load} onRetry={fetchBoard} />
+      <Board load={load} period={period} onRetry={fetchBoard} />
       {!user && <Button label="Create an account" onPress={() => router.push('/register')} />}
     </Screen>
   );
 }
 
-function toRows(entries: LeaderboardEntry[], profile: Profile | null): { rows: Row[]; me: Row | null } {
+function toRows(entries: LeaderboardEntry[], profile: Profile | null, period: LeaderboardPeriod): { rows: Row[]; me: Row | null } {
   // The server includes people with no points and numbers tied totals 1, 2, 3. Leave out the zeros and give equal
   // totals the same rank (UC 4.2.AC.4), which is exact within the list because it's sorted by points.
   const rows: Row[] = [];
@@ -86,22 +108,27 @@ function toRows(entries: LeaderboardEntry[], profile: Profile | null): { rows: R
     });
   }
   if (!profile || rows.some((r) => r.isMe)) return { rows, me: null };
+  // Your lifetime total is on your profile. Your weekly total is only known if the server listed you (with 0) or
+  // returned fewer than LIMIT rows, which means everyone with points is on the list and you have none this week.
+  const listed = entries.find((e) => e.username === profile.username);
+  const points =
+    period === 'all_time' ? profile.eco_points : listed ? listed.eco_points : entries.length < LIMIT ? 0 : null;
   const last = rows[rows.length - 1];
   return {
     rows,
     me: {
       // Tied with the last row shown means the same rank; otherwise all we know is that it's below the list.
-      rank: last && profile.eco_points > 0 && profile.eco_points === last.points ? last.rank : null,
+      rank: last && points != null && points > 0 && points === last.points ? last.rank : null,
       key: profile.username,
       name: personName(profile),
       level: profile.level,
-      points: profile.eco_points,
+      points,
       isMe: true,
     },
   };
 }
 
-function Board({ load, onRetry }: { load: Load; onRetry: () => void }) {
+function Board({ load, period, onRetry }: { load: Load; period: LeaderboardPeriod; onRetry: () => void }) {
   if (load.kind === 'loading') return <ActivityIndicator color={colors.text} style={styles.spinner} />;
   if (load.kind === 'error') {
     return (
@@ -115,11 +142,16 @@ function Board({ load, onRetry }: { load: Load; onRetry: () => void }) {
   }
 
   const { rows, me } = load;
+  const unranked = period === 'week' ? 'No points this week yet' : 'Not ranked yet';
   if (rows.length === 0) {
     return (
       <>
-        <EmptyState icon="award" title="No one's on the board yet" message="Verified recycling earns Eco Points. Be the first." />
-        {me && <RankRow row={me} note="Not ranked yet" />}
+        <EmptyState
+          icon="award"
+          title={period === 'week' ? 'No one has earned points this week' : "No one's on the board yet"}
+          message="Verified recycling earns Eco Points. Be the first."
+        />
+        {me && <RankRow row={me} note={unranked} />}
       </>
     );
   }
@@ -135,13 +167,14 @@ function Board({ load, onRetry }: { load: Load; onRetry: () => void }) {
           <AppText color="textFaint" style={styles.gap} accessibilityElementsHidden>
             ⋯
           </AppText>
-          <RankRow row={me} note={me.points === 0 ? 'Not ranked yet' : me.rank == null ? `Not in the top ${rows.length}` : undefined} />
+          <RankRow row={me} note={me.points === 0 ? unranked : me.rank == null ? `Not in the top ${rows.length}` : undefined} />
         </>
       )}
       <AppText variant="small" color="textFaint" style={styles.footnote}>
         {/* UC 4.2.AC.4 and EX.5: the tie rule and what counts, stated rather than implied. */}
-        Eco Points come from verified recycling and completed quests. Contributing to a milestone doesn't lower them. Equal
-        totals share a rank. Weekly and friends rankings aren't available yet.
+        {period === 'week'
+          ? 'This week runs from Monday to Sunday, Singapore time, and counts the Eco Points earned in that time. Equal totals share a rank.'
+          : "Eco Points come from verified recycling and completed quests. Contributing to a milestone doesn't lower them. Equal totals share a rank."}
       </AppText>
     </View>
   );
@@ -149,12 +182,12 @@ function Board({ load, onRetry }: { load: Load; onRetry: () => void }) {
 
 function RankRow({ row: r, note }: { row: Row; note?: string }) {
   const detail = note ?? [`Level ${r.level}`, r.isMe ? 'you' : null].filter(Boolean).join(' · ');
-  const points = r.points.toLocaleString('en-SG');
+  const points = r.points == null ? null : r.points.toLocaleString('en-SG');
   return (
     <View
       style={[styles.row, r.isMe && styles.meRow]}
       accessible
-      accessibilityLabel={`${r.rank == null ? '' : `Rank ${r.rank}, `}${r.name}${r.isMe ? ' (you)' : ''}, ${detail}, ${points} Eco Points`}
+      accessibilityLabel={`${r.rank == null ? '' : `Rank ${r.rank}, `}${r.name}${r.isMe ? ' (you)' : ''}, ${note ?? `Level ${r.level}`}${points == null ? '' : `, ${points} Eco Points`}`}
     >
       <AppText variant="bodyStrong" color="textMuted" style={styles.rank}>
         {r.rank ?? '—'}
@@ -168,13 +201,14 @@ function RankRow({ row: r, note }: { row: Row; note?: string }) {
           {note && r.isMe ? `${note} · you` : detail}
         </AppText>
       </View>
-      <AppText variant="bodyStrong">{points}</AppText>
+      {points != null && <AppText variant="bodyStrong">{points}</AppText>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  chips: { flexDirection: 'row', gap: spacing.sm },
   spinner: { marginTop: spacing.xl },
   row: {
     flexDirection: 'row',

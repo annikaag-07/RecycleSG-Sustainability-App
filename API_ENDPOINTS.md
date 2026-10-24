@@ -142,7 +142,8 @@ Quest rewards add to `eco_points`, `available_eco_points` and `xp` but aren't wr
 |---|---|---|---|---|
 | `POST /rest/v1/rpc/get_leaderboard` | Everyone by lifetime `eco_points`, highest first | `{ "p_limit": 50 }` — default 10, max 100 | `[{ "rank": 1, "username": "user_cb08...", "display_name": "Alex Tan", "level": 2, "eco_points": 120 }]` | Public |
 
-All-time only — **no weekly period and no friends scope** (there's no follows table), and no flag for the caller's own row
+All-time only so far — a weekly period is being added (see Proposed endpoints). **No friends scope** (there's no follows
+table), and no flag for the caller's own row
 (the app matches on `username` from the caller's profile). `rank` is a row number ordered by points then user id, so
 equal totals get different ranks; the app gives them the same rank. People with 0 points are included; the app leaves them out.
 
@@ -204,6 +205,7 @@ role can set. That only hides admin UI; every `admin_*` function below must chec
 | `admin_list_milestones_for_review` | — | rows: `id, name, description, organisation, target_points, current_points, expected_outcome, closing_date, status, evidence_url, evidence_notes, evidence_requested_note, decided_at, decision_reason` | MilestoneVerificationUI | **Live** at `3eb5cdd`. Returns `AwaitingVerification`, `Verified` and `Rejected` milestones. Admin = row in `app_admins`. |
 | `admin_decide_milestone` | `p_milestone_id bigint, p_decision text, p_reason text, p_expected_status text` | new `status` text | MilestoneVerificationUI | `p_decision` ∈ `verify`, `reject` (reason required), `request_evidence` (note required; stays `AwaitingVerification`). Refuse if current status ≠ `p_expected_status` so two admins can't both decide (UC 7.1.EX.2). Record decision, admin, timestamp, evidence ref; notify contributors on `verify` (REQ-13.11). |
 | `admin_moderation_queue` | — | rows: `target_type ('post'\|'comment'), target_id, author_id, author_name, excerpt, report_count, reasons text[], first_reported_at` | ModerationQueueUI | Ordered by `report_count` desc (REQ-11.3). Moderator or admin. Needs Person B's posts/comments/reports tables. |
+| `get_leaderboard` (new `p_period`) | `p_limit integer default 10, p_period text default 'all_time'` | same rows as now: `rank, username, display_name, level, eco_points` | LeaderboardUI | The backend owner is adding a weekly board (2026-10-24); this is the shape the app expects. `p_period` ∈ `all_time`, `week`; for `week`, `eco_points` = verified Eco Points earned since Monday 00:00 Singapore time. Leave out 0 points; `RANK()` so equal totals share a rank. **Drop the old `get_leaderboard(integer)`** when adding this one, or PostgREST can't choose between them (PGRST203). The app calls all time without `p_period`, so it works before and after. |
 | `admin_moderate_content` | `p_target_type text, p_target_id bigint, p_content_action text, p_user_action text, p_note text` | `void` | ModerationQueueUI | `p_content_action` ∈ `dismiss`, `hide`, `delete`; `p_user_action` ∈ `none`, `warn`, `suspend`, `ban` (REQ-11.4). |
 
 **Kept on the device for now** (no backend storage; the UI says so): favourites (REQ-3.7), notification category
@@ -246,7 +248,7 @@ Raise these with the backend owner.
 | MilestoneContributionUI | ✅ `contribute_to_milestone`, `list_my_milestone_contributions` | — |
 | QuestsUI | ✅ `quests`, `user_quest_progress`, `claim_quest_reward` | No streaks (UC 4.1 step 5); periods are UTC, so "daily" turns over at 08:00 Singapore time, not midnight |
 | CollectionUI | ✅ `badges`, `user_badges` | Badges don't record where they were earned, only when |
-| LeaderboardUI | ⚠️ partial — `get_leaderboard` | All-time only: no weekly board, no friends board (no follows), no town. Own row matched by username |
+| LeaderboardUI | ⚠️ partial — `get_leaderboard`; ⏳ `p_period` (proposed) | This week / All time toggle built; until the server takes `p_period` the app says so and shows all time. No friends board (no follows), no town. Own row matched by username |
 | FeedUI | ⚠️ partial — `get_community_feed` | Read-only list of verified drops: no Following/Discover, posts, photos, likes, comments or follows |
 | PostDetailUI | ❌ none | No posts/comments/likes — screen says so and links to the feed |
 | PostComposerUI | ❌ none | No posts table or post photos — screen says so and links to the feed |

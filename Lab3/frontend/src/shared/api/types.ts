@@ -138,7 +138,12 @@ export type MilestoneContribution = {
 // Leaderboard and community feed (leaderboard_api, community_feed migrations)
 // ---------------------------------------------------------------------------------------------
 
-/** Returned by get_leaderboard: profiles by lifetime Eco Points. `rank` is a row number, so ties get different ranks. */
+export type LeaderboardPeriod = 'week' | 'all_time';
+
+/**
+ * Returned by get_leaderboard: profiles by Eco Points, lifetime or (once the backend adds it) earned this week.
+ * `rank` is a row number, so ties get different ranks.
+ */
 export type LeaderboardEntry = {
   rank: number;
   username: string;

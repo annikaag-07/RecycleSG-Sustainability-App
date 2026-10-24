@@ -156,7 +156,8 @@ export default function RewardUI() {
             You'll see them here and on the You tab when it's done.
           </AppText>
           <AppText variant="small" color="textFaint">
-            Once verified, the drop also appears in the community feed, without your name.
+            Once verified, the drop also appears in the community feed under your display name, or as Anonymous Recycler if you
+            haven't set one.
           </AppText>
         </Card>
       )}

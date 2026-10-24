@@ -1,6 +1,6 @@
 # RecycleSG Backend API Reference (for frontend)
 
-Source: `feature/backend` @ `4e661f0` — `Lab3/backend/supabase/migrations/*.sql` and `Lab3/backend/API_DOCUMENTATION.md`.
+Source: `feature/backend` @ `5a146f5` — `Lab3/backend/supabase/migrations/*.sql` and `Lab3/backend/API_DOCUMENTATION.md`.
 Where the two disagree, this file follows the SQL (the SQL is what actually runs).
 
 ## How the backend works
@@ -168,9 +168,10 @@ first result, a different amount with the same ID is refused. Errors: `Contribut
 
 | Method & URL | What it does | Request | Example response | Auth |
 |---|---|---|---|---|
-| `POST /rest/v1/rpc/get_community_feed` | Latest verified recycling activities, newest first | `{ "p_limit": 20 }` — default 20, max 100, no offset | `[{ "activity_id": 4, "username": "Anonymous Recycler", "display_name": "Anonymous Recycler", "material": "Plastic", "quantity": 4, "recycled_at": "..." }]` | Public |
+| `POST /rest/v1/rpc/get_community_feed` | Latest verified recycling activities, newest first | `{ "p_limit": 20 }` — default 20, max 100, no offset | `[{ "activity_id": 4, "username": "Anonymous Recycler", "display_name": "Alex Tan", "material": "Plastic", "quantity": 4, "recycled_at": "..." }]` | Public |
 
-Every verified activity is listed anonymously: `username` and `display_name` are always `Anonymous Recycler`. **No posts, comments, likes,
+Every verified activity is listed. `username` is always `Anonymous Recycler`; `display_name` is the recycler's (trimmed), or
+`Anonymous Recycler` when it's empty or unset. **No posts, comments, likes,
 follows, hashtags, blocks or notifications tables**, so PostDetailUI and PostComposerUI have nothing to call.
 
 ---
@@ -246,6 +247,6 @@ Raise these with the backend owner.
 | QuestsUI | ✅ `quests`, `user_quest_progress`, `claim_quest_reward` | No streaks (UC 4.1 step 5) |
 | CollectionUI | ✅ `badges`, `user_badges` | Badges don't record where they were earned, only when |
 | LeaderboardUI | ⚠️ partial — `get_weekly_leaderboard`, `get_leaderboard` | This week / All time both work. No friends board (no follows), no town. Own row matched by username |
-| FeedUI | ⚠️ partial — `get_community_feed` | Read-only, anonymous list of verified drops: no Following/Discover, posts, photos, likes, comments or follows |
+| FeedUI | ⚠️ partial — `get_community_feed` | Read-only list of verified drops by display name (usernames hidden): no Following/Discover, posts, photos, likes, comments or follows |
 | PostDetailUI | ❌ none | No posts/comments/likes — screen says so and links to the feed |
 | PostComposerUI | ❌ none | No posts table or post photos — screen says so and links to the feed |

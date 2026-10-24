@@ -1,4 +1,4 @@
-// Row/response shapes from Lab3/backend/supabase/migrations (feature/backend @ 4e661f0).
+// Row/response shapes from Lab3/backend/supabase/migrations (feature/backend @ 5a146f5).
 // Keep in sync with API_ENDPOINTS.md if the backend changes.
 
 export type PointStatus =
@@ -154,7 +154,10 @@ export type LeaderboardEntry = {
   eco_points: number;
 };
 
-/** Returned by get_community_feed: verified recycling only, newest first. Names are always "Anonymous Recycler". */
+/**
+ * Returned by get_community_feed: verified recycling only, newest first. `username` is always "Anonymous Recycler";
+ * `display_name` is the recycler's, or "Anonymous Recycler" when they haven't set one.
+ */
 export type CommunityFeedItem = {
   activity_id: number;
   username: string;

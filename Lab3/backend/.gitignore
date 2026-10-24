@@ -1,0 +1,21 @@
+
+# Local recycling datasets and generated imports
+/data/*.geojson
+/data/*.json
+/data/*.csv
+!/data/recycling_points.csv
+/supabase/seed.sql
+
+# Credentials and local environment files
+.env
+.env.*
+!.env.example
+
+# Python temporary files
+__pycache__/
+*.pyc
+
+# Local authentication test files
+*token*
+# Temporary Supabase SQL Editor queries
+/supabase/snippets/

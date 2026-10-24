@@ -1,12 +1,12 @@
-import { PlaceholderScreen } from '@/shared/components';
+import { Header, Screen } from '@/shared/components';
+import { PostsNotOnServer } from './PostsNotOnServer';
 
+/** UC 5.1 (share a recycling activity as a post). Waiting on a posts backend and a post photo bucket. */
 export default function PostComposerUI() {
   return (
-    <PlaceholderScreen
-      name="PostComposerUI"
-      owner="Person B (Parth)"
-      useCase="5.1 Share a recycling activity to the feed"
-      leading="close"
-    />
+    <Screen>
+      <Header title="New post" leading="close" />
+      <PostsNotOnServer />
+    </Screen>
   );
 }

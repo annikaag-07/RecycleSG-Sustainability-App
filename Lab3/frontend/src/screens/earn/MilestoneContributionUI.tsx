@@ -2,20 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
-import { api, toApiError, type Profile } from '@/shared/api';
-import { newRequestId, type ContributionResult, type Milestone, type MilestoneContribution } from '@/shared/api/proposed';
+import { api, toApiError, type ContributionResult, type Milestone, type MilestoneContribution, type Profile } from '@/shared/api';
+import { newRequestId } from '@/shared/api/proposed';
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, Chip, EmptyState, Header, Screen, TextField } from '@/shared/components';
 import { colors, spacing } from '@/shared/theme';
-import { NotOnServerYet } from '@/screens/find/AdminGate';
 import { MilestoneProgress, MilestoneStatusBadge, formatClosingDate, isOpen } from './MilestoneBits';
 
 type Load =
   | { kind: 'loading' }
-  | { kind: 'notAvailable' }
   | { kind: 'notFound' }
   | { kind: 'error'; message: string }
-  /** `history` is null when the contributions endpoint isn't there yet; the rest of the screen still works. */
+  /** `history` is null if it couldn't be loaded; the rest of the screen still works. */
   | { kind: 'ready'; milestone: Milestone; profile: Profile; history: MilestoneContribution[] | null };
 
 type Step =
@@ -25,6 +23,14 @@ type Step =
   | { kind: 'done'; result: ContributionResult };
 
 const QUICK_AMOUNTS = [10, 50, 100];
+
+// The backend raises plain exceptions, so its message text is the only way to tell these apart.
+const CONTRIBUTION_ERRORS: Record<string, string> = {
+  'Insufficient Eco Points': 'You don’t have that many available Eco Points any more. Go back and choose a smaller amount.',
+  'Milestone unavailable': 'This milestone has just closed to contributions, so nothing was deducted.',
+  'Milestone target reached': 'Someone else has just filled this milestone, so nothing was deducted.',
+  'Verified account required': 'Verify your email to contribute. Nothing was deducted.',
+};
 
 /** UC 3.3 steps 3–11: put part of your available Eco Points towards a community milestone. */
 export default function MilestoneContributionUI() {
@@ -42,14 +48,16 @@ export default function MilestoneContributionUI() {
     if (!Number.isInteger(id)) return setLoad({ kind: 'notFound' });
     setLoad({ kind: 'loading' });
     try {
-      const [milestones, profile] = await Promise.all([api.proposed.listMilestones(), api.profile.getMyProfile(user.id)]);
+      const [milestones, profile, history] = await Promise.all([
+        api.milestones.listMilestones(),
+        api.profile.getMyProfile(user.id),
+        api.milestones.listMyContributions().catch(() => null),
+      ]);
       const milestone = milestones.find((m) => m.id === id);
       if (!milestone) return setLoad({ kind: 'notFound' });
-      const history = await api.proposed.listMyContributions(id).catch(() => null);
-      setLoad({ kind: 'ready', milestone, profile, history });
+      setLoad({ kind: 'ready', milestone, profile, history: history?.filter((c) => c.milestone_id === id) ?? null });
     } catch (e) {
-      const err = toApiError(e);
-      setLoad(err.code === 'not_available' ? { kind: 'notAvailable' } : { kind: 'error', message: err.message });
+      setLoad({ kind: 'error', message: toApiError(e).message });
     }
   }, [id, user]);
 
@@ -73,14 +81,6 @@ export default function MilestoneContributionUI() {
         <View style={styles.centered}>
           <ActivityIndicator color={colors.text} />
         </View>
-      </Screen>
-    );
-  }
-  if (load.kind === 'notAvailable') {
-    return (
-      <Screen>
-        <Header title="Milestone" leading="back" />
-        <NotOnServerYet feature="Contributing to milestones" />
       </Screen>
     );
   }
@@ -136,14 +136,13 @@ export default function MilestoneContributionUI() {
       setSubmitting(true);
       setSubmitError(undefined);
       try {
-        const result = await api.proposed.contributeToMilestone(m.id, step.amount, step.requestId);
+        const result = await api.milestones.contributeToMilestone(m.id, step.amount, step.requestId);
         setStep({ kind: 'done', result });
       } catch (e) {
         const err = toApiError(e);
-        if (err.code === 'not_available') setSubmitError('Contributions aren’t available on the server yet.');
         // UC 3.3.EX.5: never queue an unconfirmed contribution. The same request ID makes the retry safe (EX.4).
-        else if (err.isNetwork) setSubmitError('Couldn’t reach the server, so nothing was deducted. Try again when you’re back online.');
-        else setSubmitError(err.message);
+        if (err.isNetwork) setSubmitError('Couldn’t reach the server, so nothing was deducted. Try again when you’re back online.');
+        else setSubmitError(CONTRIBUTION_ERRORS[err.message] ?? err.message);
       } finally {
         setSubmitting(false);
       }
@@ -215,19 +214,23 @@ export default function MilestoneContributionUI() {
         )}
       </Card>
 
-      <Card label="About">
-        <AppText>{m.description}</AppText>
-        <AppText variant="small" color="textMuted">
-          Expected outcome: {m.expected_outcome}
-        </AppText>
-      </Card>
+      {(m.description || m.expected_outcome) && (
+        <Card label="About">
+          {m.description && <AppText>{m.description}</AppText>}
+          {m.expected_outcome && (
+            <AppText variant="small" color="textMuted">
+              Expected outcome: {m.expected_outcome}
+            </AppText>
+          )}
+        </Card>
+      )}
 
       {m.status === 'Verified' && (
         <Banner tone="info" title="Outcome verified">
           An administrator has checked the evidence that this outcome happened.
         </Banner>
       )}
-      {m.status === 'VerificationRejected' && (
+      {m.status === 'Rejected' && (
         <Banner tone="warning" title="Verification rejected">
           The evidence for this milestone wasn't accepted, so the outcome isn't confirmed.
         </Banner>

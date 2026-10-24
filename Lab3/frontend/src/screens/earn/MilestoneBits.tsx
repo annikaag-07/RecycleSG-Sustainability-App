@@ -1,7 +1,7 @@
 // Milestone pieces shared by EnvironmentalImpactUI and MilestoneContributionUI.
 import { StyleSheet, View } from 'react-native';
 
-import type { Milestone, MilestoneStatus } from '@/shared/api/proposed';
+import type { Milestone, MilestoneStatus } from '@/shared/api';
 import { AppText } from '@/shared/components';
 import { colors, radius, spacing } from '@/shared/theme';
 
@@ -11,7 +11,7 @@ const STATUS: Record<MilestoneStatus, { label: string; color: string }> = {
   Active: { label: 'Collecting', color: colors.textMuted },
   AwaitingVerification: { label: 'Awaiting verification', color: colors.warning },
   Verified: { label: 'Verified outcome', color: colors.success },
-  VerificationRejected: { label: 'Verification rejected', color: colors.danger },
+  Rejected: { label: 'Verification rejected', color: colors.danger },
 };
 
 export function milestoneStatusLabel(status: MilestoneStatus) {
@@ -47,9 +47,19 @@ export function formatClosingDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** Open for contributions: Active and not past its closing date (UC 3.3 precondition 4). */
+/** Open for contributions: Active, not past its closing date and not yet full (UC 3.3 precondition 4). */
 export function isOpen(m: Milestone, now = new Date()) {
-  return m.status === 'Active' && (!m.closing_date || new Date(m.closing_date) >= now) && m.current_points < m.target_points;
+  return m.status === 'Active' && (!m.closing_date || new Date(m.closing_date) > now) && m.current_points < m.target_points;
+}
+
+const ORDER: Record<MilestoneStatus, number> = { Active: 0, AwaitingVerification: 1, Verified: 2, Rejected: 3 };
+
+/** The server lists newest first; show the open ones first, soonest closing, then the closed ones by status. */
+export function sortMilestones(items: Milestone[], now = new Date()) {
+  const closes = (m: Milestone) => (m.closing_date ? new Date(m.closing_date).getTime() : Infinity);
+  return [...items].sort(
+    (a, b) => Number(isOpen(b, now)) - Number(isOpen(a, now)) || ORDER[a.status] - ORDER[b.status] || closes(a) - closes(b),
+  );
 }
 
 const styles = StyleSheet.create({

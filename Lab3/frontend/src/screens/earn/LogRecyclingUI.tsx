@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 
 import { api, toApiError, type CheckIn, type RecyclingAction, type RecyclingPointDetail } from '@/shared/api';
+import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, Chip, EmptyState, Header, Screen } from '@/shared/components';
 import { formatDistance } from '@/shared/geo';
 import { pointStream } from '@/shared/materials';
@@ -20,16 +22,26 @@ type Load =
   | { kind: 'error'; message: string }
   | { kind: 'ready'; checkIn: CheckIn; point: RecyclingPointDetail; logged: RecyclingAction[] };
 
+type Photo = { uri: string; base64: string; mimeType: string };
+
+const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.6, base64: true, exif: false };
+// The camera isn't reliably available in a browser, so web picks a file (which a phone browser can take with the camera).
+const HAS_CAMERA = Platform.OS !== 'web';
+
 /** UC 3.2 steps 1–7: what went in the bin, how many, and what it will earn once verified. */
 export default function LogRecyclingUI() {
   const { checkInId: checkInIdParam } = useLocalSearchParams<{ checkInId: string }>();
   const checkInId = Number(checkInIdParam);
+  const { user } = useAuth();
   const now = useNow();
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [materialId, setMaterialId] = useState<number>();
   const [quantity, setQuantity] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string>();
+  const [photo, setPhoto] = useState<Photo>();
+  const [photoError, setPhotoError] = useState<string>();
+  const [cameraDenied, setCameraDenied] = useState(false);
   // The server's clock decides expiry; this catches the case where the device clock disagrees.
   const [expiredOnServer, setExpiredOnServer] = useState(false);
 
@@ -93,13 +105,51 @@ export default function LogRecyclingUI() {
   const guidance = material && dropGuidance(material.name);
   const points = quantity * POINTS_PER_ITEM;
 
+  // UC 3.2 step 2 and AC.3 (retake).
+  const pickPhoto = async (source: 'camera' | 'library') => {
+    setPhotoError(undefined);
+    try {
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) return setCameraDenied(true);
+      }
+      const result =
+        source === 'camera' ? await ImagePicker.launchCameraAsync(PICKER_OPTIONS) : await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
+      const asset = result.canceled ? undefined : result.assets[0];
+      if (!asset) return;
+      const mimeType = asset.mimeType ?? 'image/jpeg';
+      if (!asset.base64) return setPhotoError('Couldn’t read that photo. Try another one.');
+      if (!api.photos.PHOTO_TYPES.includes(mimeType)) return setPhotoError('Use a JPEG, PNG or WebP photo.');
+      if ((asset.base64.length * 3) / 4 > api.photos.MAX_PHOTO_BYTES) {
+        return setPhotoError('That photo is over 5 MB. Retake it, or choose a smaller one.');
+      }
+      setCameraDenied(false);
+      setPhoto({ uri: asset.uri, base64: asset.base64, mimeType });
+    } catch (e) {
+      setPhotoError(toApiError(e).message);
+    }
+  };
+
   const goToReward = (actionId: number) =>
     router.replace({ pathname: '/find/reward/[actionId]', params: { actionId: String(actionId) } });
 
   const onSubmit = async () => {
-    if (!material) return;
+    if (!material || !photo || !user) return;
     setSubmitting(true);
     setSubmitError(undefined);
+    try {
+      // The photo goes up first, so a failed upload logs nothing and the whole thing can simply be retried (UC 3.2.EX.3).
+      await api.photos.uploadRecyclingPhoto(user.id, checkIn.id, material.id, photo);
+    } catch (e) {
+      const err = toApiError(e);
+      setSubmitError(
+        err.isNetwork
+          ? `Couldn't upload the photo, so nothing was logged. Try again before ${clockTime(deadline)}.`
+          : `The photo didn't upload, so nothing was logged. ${err.message}`,
+      );
+      setSubmitting(false);
+      return;
+    }
     try {
       goToReward(await api.checkins.submitRecyclingActivity(checkIn.id, material.id, quantity));
     } catch (e) {
@@ -155,11 +205,48 @@ export default function LogRecyclingUI() {
           </AppText>
 
           <Card label="Photo">
-            {/* SRS 3.2 asks for a photo as evidence, but there's no photo storage on the backend yet (same as ReportIssueUI). */}
-            <Button label="Add a photo" icon="camera" variant="secondary" disabled accessibilityHint="Not available yet" />
-            <AppText variant="small" color="textFaint">
-              Photos can't be attached yet — the server has no photo storage. Your GPS check-in is the evidence for now.
-            </AppText>
+            {photo ? (
+              <>
+                <Image source={{ uri: photo.uri }} style={styles.photo} resizeMode="cover" accessibilityLabel="Photo of your drop" />
+                {/* UC 3.2 step 2: the photo carries the point and the position locked at check-in. */}
+                <View style={styles.photoTag}>
+                  <Feather name="map-pin" size={14} color={colors.textMuted} />
+                  <AppText variant="small" color="textMuted" style={styles.fill}>
+                    {title} · location locked at check-in
+                  </AppText>
+                </View>
+                <View style={styles.photoActions}>
+                  {HAS_CAMERA && <Button label="Retake" icon="camera" variant="secondary" style={styles.fill} onPress={() => pickPhoto('camera')} />}
+                  <Button
+                    label={HAS_CAMERA ? 'Library' : 'Choose another'}
+                    icon="image"
+                    variant="secondary"
+                    style={styles.fill}
+                    onPress={() => pickPhoto('library')}
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                <AppText color="textMuted">Take a photo of what you're putting in. It's the evidence the drop is checked against.</AppText>
+                {HAS_CAMERA && <Button label="Take a photo" icon="camera" onPress={() => pickPhoto('camera')} />}
+                <Button
+                  label={HAS_CAMERA ? 'Choose from library' : 'Add a photo'}
+                  icon="image"
+                  variant={HAS_CAMERA ? 'secondary' : 'primary'}
+                  onPress={() => pickPhoto('library')}
+                />
+              </>
+            )}
+            {cameraDenied && (
+              // UC 3.2.EX.2: say why the photo is needed, and offer the settings or another way in.
+              <Banner tone="warning" title="Camera access is off">
+                A photo is needed as evidence for a rewarded drop. Turn on camera access in Settings, or choose a photo from your
+                library.
+              </Banner>
+            )}
+            {cameraDenied && <Button label="Open Settings" variant="ghost" onPress={() => Linking.openSettings()} />}
+            {photoError && <AppText color="danger">{photoError}</AppText>}
           </Card>
 
           <Card label="What did you put in?">
@@ -221,11 +308,13 @@ export default function LogRecyclingUI() {
           {/* UC 3.2 step 6: the button says what the drop is worth, so there's no surprise at the end. */}
           <Button
             label={
-              material
-                ? `Log ${quantity} ${material.name.toLowerCase()} item${quantity === 1 ? '' : 's'} · ${points} points`
-                : 'Choose what you put in'
+              !material
+                ? 'Choose what you put in'
+                : !photo
+                  ? 'Add a photo to log this'
+                  : `Log ${quantity} ${material.name.toLowerCase()} item${quantity === 1 ? '' : 's'} · ${points} points`
             }
-            disabled={!material}
+            disabled={!material || !photo}
             loading={submitting}
             onPress={onSubmit}
           />
@@ -281,4 +370,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   qty: { minWidth: 56, textAlign: 'center' },
+  photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: radius.md, backgroundColor: colors.surfaceRaised },
+  photoTag: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  photoActions: { flexDirection: 'row', gap: spacing.md },
 });

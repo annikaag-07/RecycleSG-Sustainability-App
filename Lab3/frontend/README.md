@@ -30,15 +30,15 @@ src/
   shared/           Used by both. Coordinate before changing anything here.
     theme/          colors, spacing, radius, typography (from the mockups)
     components/     AppText, Button, Card, Chip, TextField, Banner, EmptyState, Header, Screen, PlaceholderScreen
-    api/            Supabase client + typed wrappers: api.auth / api.points / api.checkins / api.profile
+    api/            Supabase client + typed wrappers: api.auth / points / checkins / profile / photos / milestones /
+                    progress (quests, badges) / community (leaderboard, feed)
     auth/           AuthProvider + useAuth() (session, user, isGuest, isVerified)
     map/            <RecycleMap> — react-native-maps on native, Leaflet on web, OneMap "Night" tiles
 ```
 
-**Status:** all 11 Person A screens in `screens/find/` are built. Person B has built CheckInUI, LogRecyclingUI, RewardUI,
-EnvironmentalImpactUI, MilestoneContributionUI and LeaderboardUI; the other 5 in `screens/earn/` still render a `PlaceholderScreen` — replace each file's contents
-when you build it, keeping the default export and file name so the route keeps working. The check-in and reward rules the
-server enforces (100 m radius, 30-min cooldown, 10 a day, 15-min log window, 10 points per item) are copied into
+**Status:** all 22 screens are built. PostDetailUI and PostComposerUI only say that posts aren't on the server yet, since
+the backend has no posts, comments or likes. The check-in, reward and quest rules the server enforces (100 m radius,
+30-min cooldown, 10 a day, 15-min log window, 10 points per item, UTC quest periods) are copied into
 `screens/earn/rules.ts`; update it if the backend changes them.
 
 Shared helpers Person B can reuse: `@/shared/location` (permission + GPS fix), `@/shared/geo` (distance/format),

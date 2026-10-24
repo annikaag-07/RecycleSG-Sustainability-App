@@ -1,12 +1,12 @@
-import { PlaceholderScreen } from '@/shared/components';
+import { Header, Screen } from '@/shared/components';
+import { PostsNotOnServer } from './PostsNotOnServer';
 
+/** UC 5.2 steps 5–6 (a post and its comments). Waiting on a posts and comments backend. */
 export default function PostDetailUI() {
   return (
-    <PlaceholderScreen
-      name="PostDetailUI"
-      owner="Person B (Parth)"
-      useCase="5.2 Interact with the community feed"
-      leading="back"
-    />
+    <Screen>
+      <Header title="Post" leading="back" />
+      <PostsNotOnServer />
+    </Screen>
   );
 }

@@ -152,8 +152,11 @@ export default function RewardUI() {
             {points} Eco Points · {xp} XP
           </AppText>
           <AppText color="textMuted">
-            These are added once the drop is verified. Until then they don't count towards your balance or level. You'll see them here
-            and on the You tab when it's done.
+            These are added once the drop is verified. Until then they don't count towards your balance, level, quests or badges.
+            You'll see them here and on the You tab when it's done.
+          </AppText>
+          <AppText variant="small" color="textFaint">
+            Once verified, the drop also appears in the community feed under your display name.
           </AppText>
         </Card>
       )}
@@ -190,24 +193,17 @@ export default function RewardUI() {
           onPress={() => router.replace({ pathname: '/find/log/[checkInId]', params: { checkInId: String(action.check_in_id) } })}
         />
       )}
-      <View style={styles.actions}>
-        <Button label="Done" variant="secondary" style={styles.fill} onPress={done} />
-        {status !== 'Rejected' && (
-          // UC 3.2.AC.5: the new post is pre-linked to this drop.
-          <Button
-            label="Share to feed"
-            icon="camera"
-            style={styles.fill}
-            onPress={() => router.push({ pathname: '/feed/compose', params: { actionId: String(action.id) } })}
-          />
-        )}
-      </View>
+      {status === 'Verified' && (
+        // UC 3.2.AC.5 asks for a post linked to this drop. The server has no posts, but it lists every verified drop in the
+        // community feed by itself, so this one is there already.
+        <Button label="See it in the community feed" icon="users" variant="secondary" onPress={() => router.push('/feed')} />
+      )}
+      <Button label="Done" onPress={done} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 },
   center: { textAlign: 'center' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   hero: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.lg },
@@ -221,5 +217,4 @@ const styles = StyleSheet.create({
   },
   barTrack: { height: 10, borderRadius: 5, backgroundColor: colors.surfaceRaised, overflow: 'hidden' },
   barFill: { height: '100%', backgroundColor: colors.success },
-  actions: { flexDirection: 'row', gap: spacing.md },
 });

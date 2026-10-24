@@ -1,4 +1,4 @@
-// Row/response shapes from Lab3/backend/supabase/migrations (feature/backend @ 19ad79f).
+// Row/response shapes from Lab3/backend/supabase/migrations (feature/backend @ 3eb5cdd).
 // Keep in sync with API_ENDPOINTS.md if the backend changes.
 
 export type PointStatus =
@@ -97,3 +97,116 @@ export type EnvironmentalImpact = {
 };
 
 export type LatLng = { latitude: number; longitude: number };
+
+// ---------------------------------------------------------------------------------------------
+// Community milestones (milestone_system migration)
+// ---------------------------------------------------------------------------------------------
+
+export type MilestoneStatus = 'Active' | 'AwaitingVerification' | 'Verified' | 'Rejected';
+
+/** Returned by list_milestones: the public fields only, no evidence or admin decision. */
+export type Milestone = {
+  id: number;
+  name: string;
+  description: string | null;
+  organisation: string;
+  target_points: number;
+  current_points: number;
+  expected_outcome: string | null;
+  closing_date: string | null;
+  status: MilestoneStatus;
+};
+
+/** Returned by contribute_to_milestone. `accepted_amount` is less than asked when the milestone needed less. */
+export type ContributionResult = {
+  accepted_amount: number;
+  available_eco_points: number;
+  current_points: number;
+  status: MilestoneStatus;
+};
+
+/** Returned by list_my_milestone_contributions: every contribution the caller has made, newest first. */
+export type MilestoneContribution = {
+  id: number;
+  milestone_id: number;
+  milestone_name: string;
+  amount: number;
+  created_at: string;
+};
+
+// ---------------------------------------------------------------------------------------------
+// Leaderboard and community feed (leaderboard_api, community_feed migrations)
+// ---------------------------------------------------------------------------------------------
+
+/** Returned by get_leaderboard: profiles by lifetime Eco Points. `rank` is a row number, so ties get different ranks. */
+export type LeaderboardEntry = {
+  rank: number;
+  username: string;
+  display_name: string | null;
+  level: number;
+  eco_points: number;
+};
+
+/** Returned by get_community_feed: verified recycling only, newest first. */
+export type CommunityFeedItem = {
+  activity_id: number;
+  username: string;
+  display_name: string | null;
+  material: string;
+  quantity: number;
+  recycled_at: string;
+};
+
+// ---------------------------------------------------------------------------------------------
+// Quests and badges (quests_system, quest_progress_tracking, quest_reward_claims, badges_achievements)
+// ---------------------------------------------------------------------------------------------
+
+export type QuestType = 'daily' | 'weekly' | 'one_time';
+
+export type Quest = {
+  id: number;
+  title: string;
+  description: string | null;
+  quest_type: QuestType;
+  /** Verified recycling activities needed, not items. */
+  target_actions: number;
+  reward_eco_points: number;
+  reward_xp: number;
+  is_active: boolean;
+  created_at: string;
+};
+
+/** One row per user, quest and period. Created by the server when an activity is verified. */
+export type QuestProgress = {
+  id: number;
+  user_id: string;
+  quest_id: number;
+  /** 'YYYY-MM-DD': the UTC day (daily), the UTC Monday (weekly) or 1970-01-01 (one-time). */
+  period_start: string;
+  progress: number;
+  completed_at: string | null;
+  claimed_at: string | null;
+};
+
+/** Returned by claim_quest_reward. */
+export type QuestClaimResult = {
+  eco_points_awarded: number;
+  xp_awarded: number;
+  new_balance: number;
+  new_level: number;
+};
+
+export type Badge = {
+  id: number;
+  name: string;
+  description: string | null;
+  /** Verified recycling activities needed, not items. */
+  required_verified_actions: number;
+  created_at: string;
+};
+
+export type UserBadge = {
+  user_id: string;
+  badge_id: number;
+  earned_at: string;
+};

@@ -1,6 +1,8 @@
-// Copies of the server's check-in and reward rules (Lab3/backend/supabase/migrations, feature/backend @ 19ad79f).
+// Copies of the server's check-in, reward and quest rules (Lab3/backend/supabase/migrations, feature/backend @ 3eb5cdd).
 // The server enforces all of them; the app only uses them to explain a limit before the user runs into it.
 // The SRS has these set by an administrator — once the backend exposes them, read them from there instead.
+
+import type { QuestType } from '@/shared/api';
 
 /** create_gps_checkin: more than 100 m from the point is "Too far from recycling point". */
 export const CHECK_IN_RADIUS_M = 100;
@@ -33,4 +35,32 @@ export function startOfUtcDay(now: Date): Date {
 
 export function nextUtcMidnight(now: Date): Date {
   return new Date(startOfUtcDay(now).getTime() + 24 * 60 * MINUTE);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Quest periods (track_verified_quest_progress). Like the check-in limit, they turn over at midnight UTC.
+// ---------------------------------------------------------------------------------------------
+
+const DAY = 24 * 60 * MINUTE;
+
+const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+
+/** The UTC Monday that starts the current week, as Postgres date_trunc('week') counts it. */
+function startOfUtcWeek(now: Date): Date {
+  const day = startOfUtcDay(now);
+  return new Date(day.getTime() - ((day.getUTCDay() + 6) % 7) * DAY);
+}
+
+/** The `period_start` the server files progress under: today (daily), this week's Monday (weekly), or 1970-01-01. */
+export function questPeriodStart(type: QuestType, now: Date): string {
+  if (type === 'daily') return isoDate(startOfUtcDay(now));
+  if (type === 'weekly') return isoDate(startOfUtcWeek(now));
+  return '1970-01-01';
+}
+
+/** When the current period's progress stops counting. Null for one-time quests. */
+export function questPeriodEnds(type: QuestType, now: Date): Date | null {
+  if (type === 'daily') return nextUtcMidnight(now);
+  if (type === 'weekly') return new Date(startOfUtcWeek(now).getTime() + 7 * DAY);
+  return null;
 }

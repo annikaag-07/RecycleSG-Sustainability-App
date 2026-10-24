@@ -3,18 +3,24 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
-import { api, toApiError, type EnvironmentalImpact, type MaterialType, type Profile, type RecyclingAction } from '@/shared/api';
-import type { Milestone } from '@/shared/api/proposed';
+import {
+  api,
+  toApiError,
+  type EnvironmentalImpact,
+  type MaterialType,
+  type Milestone,
+  type Profile,
+  type RecyclingAction,
+} from '@/shared/api';
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, EmptyState, Header, Screen } from '@/shared/components';
 import { colors, radius, spacing } from '@/shared/theme';
 import { MaterialTile } from '@/screens/find/PointBits';
-import { MilestoneProgress, MilestoneStatusBadge, formatClosingDate, milestoneStatusLabel } from './MilestoneBits';
+import { MilestoneProgress, MilestoneStatusBadge, formatClosingDate, milestoneStatusLabel, sortMilestones } from './MilestoneBits';
 
 type Data = { profile: Profile; impact: EnvironmentalImpact; actions: RecyclingAction[]; materials: MaterialType[] };
 type Milestones =
   | { kind: 'loading' }
-  | { kind: 'unavailable' }
   | { kind: 'error'; message: string }
   | { kind: 'ready'; items: Milestone[] };
 
@@ -45,10 +51,9 @@ export default function EnvironmentalImpactUI() {
     if (!user) return;
     setMilestones({ kind: 'loading' });
     try {
-      setMilestones({ kind: 'ready', items: await api.proposed.listMilestones() });
+      setMilestones({ kind: 'ready', items: sortMilestones(await api.milestones.listMilestones()) });
     } catch (e) {
-      const err = toApiError(e);
-      setMilestones(err.code === 'not_available' ? { kind: 'unavailable' } : { kind: 'error', message: err.message });
+      setMilestones({ kind: 'error', message: toApiError(e).message });
     }
   }, [user]);
 
@@ -140,12 +145,6 @@ export default function EnvironmentalImpactUI() {
 
       <Card label="Community milestones">
         {milestones.kind === 'loading' && <ActivityIndicator color={colors.text} />}
-        {milestones.kind === 'unavailable' && (
-          <AppText color="textMuted">
-            Community milestones aren't available on the server yet. When they are, you'll be able to put your available Eco Points
-            towards them here.
-          </AppText>
-        )}
         {milestones.kind === 'error' && (
           <>
             <AppText color="danger">{milestones.message}</AppText>
@@ -153,7 +152,7 @@ export default function EnvironmentalImpactUI() {
           </>
         )}
         {milestones.kind === 'ready' && milestones.items.length === 0 && (
-          <AppText color="textMuted">No milestones are open right now.</AppText>
+          <AppText color="textMuted">There are no community milestones yet.</AppText>
         )}
         {milestones.kind === 'ready' &&
           milestones.items.map((m) => <MilestoneRow key={m.id} milestone={m} onPress={() => router.push(`/you/milestone/${m.id}`)} />)}

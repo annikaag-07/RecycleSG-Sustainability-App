@@ -46,10 +46,10 @@ export default function RewardUI() {
     if (!Number.isInteger(actionId)) return setLoad({ kind: 'notFound' });
     setLoad({ kind: 'loading' });
     try {
-      const [actions, profile, rewards, checkIns, materials] = await Promise.all([
+      const [actions, profile, reward, checkIns, materials] = await Promise.all([
         api.checkins.listMyRecyclingActions(50),
         api.profile.getMyProfile(user.id),
-        api.checkins.listMyRewards(50),
+        api.checkins.getRewardForAction(actionId),
         api.checkins.listMyCheckIns(20),
         api.points.listMaterialTypes(),
       ]);
@@ -66,7 +66,7 @@ export default function RewardUI() {
         unlogged: point ? point.materials.filter((m) => !loggedHere.has(m.id)) : [],
         checkInAt: checkIn?.checked_in_at ?? null,
         profile,
-        reward: rewards.find((r) => r.recycling_action_id === actionId) ?? null,
+        reward,
       });
     } catch (e) {
       setLoad({ kind: 'error', message: toApiError(e).message });
@@ -156,7 +156,7 @@ export default function RewardUI() {
             You'll see them here and on the You tab when it's done.
           </AppText>
           <AppText variant="small" color="textFaint">
-            Once verified, the drop also appears in the community feed under your display name.
+            Once verified, the drop also appears in the community feed, without your name.
           </AppText>
         </Card>
       )}

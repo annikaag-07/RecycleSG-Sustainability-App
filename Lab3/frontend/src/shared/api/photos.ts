@@ -12,8 +12,8 @@ export type PhotoFile = { base64: string; mimeType: string };
 const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 /**
- * `{user id}/check-in-{check-in id}-material-{material id}.{ext}`. The backend has no column the app can write the photo
- * path to, so the name is what ties a photo to its recycling activity: there's one activity per material per check-in.
+ * `{user id}/check-in-{check-in id}-material-{material id}.{ext}`. There's one activity per material per check-in, so the
+ * name is unique; the path is also passed to submit_recycling_activity, which stores it on the activity.
  */
 export function recyclingPhotoPath(userId: string, checkInId: number, materialTypeId: number, mimeType: string) {
   return `${userId}/check-in-${checkInId}-material-${materialTypeId}.${EXT[mimeType] ?? 'jpg'}`;

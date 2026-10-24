@@ -3,7 +3,6 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { api, toApiError, type CommunityFeedItem } from '@/shared/api';
-import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, EmptyState, Header, Screen } from '@/shared/components';
 import { colors, spacing } from '@/shared/theme';
 import { MaterialTile } from '@/screens/find/PointBits';
@@ -17,34 +16,24 @@ const MAX = 100;
 type Feed = { items: CommunityFeedItem[]; limit: number; loadedAt: Date };
 
 /**
- * UC 5.2, as far as the server goes: verified recycling from across Singapore, newest first. The server has no posts,
- * follows, likes or comments yet, so there's no Following tab and nothing to open or reply to.
+ * UC 5.2, as far as the server goes: verified recycling from across Singapore, newest first, without names. The server
+ * has no posts, follows, likes or comments yet, so there's no Following tab and nothing to open or reply to.
  */
 export default function FeedUI() {
-  const { user } = useAuth();
   const now = useNow(60_000);
   const [feed, setFeed] = useState<Feed>();
-  const [myUsername, setMyUsername] = useState<string>();
   const [error, setError] = useState<string>();
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const fetchFeed = useCallback(
-    async (limit: number) => {
-      setError(undefined);
-      try {
-        const [items, profile] = await Promise.all([
-          api.community.getCommunityFeed(limit),
-          user ? api.profile.getMyProfile(user.id).catch(() => null) : Promise.resolve(null),
-        ]);
-        setFeed({ items, limit, loadedAt: new Date() });
-        setMyUsername(profile?.username);
-      } catch (e) {
-        // UC 5.2.EX.1: a clear error and a retry, keeping anything already loaded.
-        setError(toApiError(e).message);
-      }
-    },
-    [user],
-  );
+  const fetchFeed = useCallback(async (limit: number) => {
+    setError(undefined);
+    try {
+      setFeed({ items: await api.community.getCommunityFeed(limit), limit, loadedAt: new Date() });
+    } catch (e) {
+      // UC 5.2.EX.1: a clear error and a retry, keeping anything already loaded.
+      setError(toApiError(e).message);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -101,7 +90,7 @@ export default function FeedUI() {
       ) : (
         <View>
           {items.map((item) => (
-            <FeedRow key={item.activity_id} item={item} isMe={item.username === myUsername} now={now} />
+            <FeedRow key={item.activity_id} item={item} now={now} />
           ))}
         </View>
       )}
@@ -114,24 +103,23 @@ export default function FeedUI() {
       )}
 
       <AppText variant="small" color="textFaint">
-        Every verified drop is shown here with the recycler's display name. Posts, photos, likes and comments aren't
-        available yet.
+        Every verified drop is shown here, without the recycler's name. Posts, photos, likes and comments aren't available
+        yet.
       </AppText>
     </Screen>
   );
 }
 
-function FeedRow({ item, isMe, now }: { item: CommunityFeedItem; isMe: boolean; now: Date }) {
+function FeedRow({ item, now }: { item: CommunityFeedItem; now: Date }) {
   const name = personName(item);
   const what = `${item.quantity} ${item.material.toLowerCase()} item${item.quantity === 1 ? '' : 's'}`;
   const when = timeAgo(new Date(item.recycled_at), now);
   return (
-    <View style={styles.row} accessible accessibilityLabel={`${name}${isMe ? ' (you)' : ''} recycled ${what}, ${when}`}>
-      <Avatar name={name} highlight={isMe} />
+    <View style={styles.row} accessible accessibilityLabel={`${name} recycled ${what}, ${when}`}>
+      <Avatar name={name} />
       <View style={styles.fill}>
         <AppText numberOfLines={2}>
-          <AppText variant="bodyStrong">{name}</AppText>
-          {isMe ? ' (you)' : ''} recycled {what}
+          <AppText variant="bodyStrong">{name}</AppText> recycled {what}
         </AppText>
         <AppText variant="small" color="textMuted">
           {when}

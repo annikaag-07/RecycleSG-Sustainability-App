@@ -173,7 +173,7 @@ function Board({ load, period, onRetry }: { load: Load; period: LeaderboardPerio
       <AppText variant="small" color="textFaint" style={styles.footnote}>
         {/* UC 4.2.AC.4 and EX.5: the tie rule and what counts, stated rather than implied. */}
         {period === 'week'
-          ? 'This week runs from Monday to Sunday, Singapore time, and counts the Eco Points earned in that time. Equal totals share a rank.'
+          ? 'This week runs from Monday to Sunday, Singapore time, and counts Eco Points from recycling verified in that time. Quest rewards count towards all time only. Equal totals share a rank.'
           : "Eco Points come from verified recycling and completed quests. Contributing to a milestone doesn't lower them. Equal totals share a rank."}
       </AppText>
     </View>

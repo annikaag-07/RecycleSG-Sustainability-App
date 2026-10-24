@@ -13,13 +13,23 @@ export async function createCheckIn(recyclingPointId: number, { latitude, longit
   );
 }
 
-/** Must be within 15 min of the check-in. Starts as 'Pending'; rewards only arrive once verified server-side. Returns the action ID. */
-export async function submitRecyclingActivity(checkInId: number, materialTypeId: number, quantity: number): Promise<number> {
+/**
+ * Must be within 15 min of the check-in. Starts as 'Pending'; rewards only arrive once verified server-side. Returns the
+ * action ID. `photoPath` is the photo's path in the recycling-photos bucket (`<user id>/...`, see api.photos), uploaded
+ * first: the server checks it's there and in the user's own folder.
+ */
+export async function submitRecyclingActivity(
+  checkInId: number,
+  materialTypeId: number,
+  quantity: number,
+  photoPath?: string,
+): Promise<number> {
   return unwrap(
     await supabase.rpc('submit_recycling_activity', {
       p_check_in_id: checkInId,
       p_material_type_id: materialTypeId,
       p_quantity: quantity,
+      ...(photoPath ? { p_photo_url: photoPath } : {}),
     }),
   );
 }
@@ -34,6 +44,12 @@ export async function listMyRecyclingActions(limit = 50): Promise<RecyclingActio
   );
 }
 
+/** The reward for one verified recycling activity, or null if it hasn't been verified. */
+export async function getRewardForAction(actionId: number): Promise<RewardTransaction | null> {
+  return unwrap(await supabase.from('reward_transactions').select('*').eq('recycling_action_id', actionId).maybeSingle());
+}
+
+/** Newest first. Includes quest rewards, which have `recycling_action_id` null and `quest_progress_id` set. */
 export async function listMyRewards(limit = 50): Promise<RewardTransaction[]> {
   return unwrap(
     await supabase.from('reward_transactions').select('*').order('created_at', { ascending: false }).limit(limit),

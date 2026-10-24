@@ -1,4 +1,4 @@
-// Row/response shapes from Lab3/backend/supabase/migrations (feature/backend @ 3eb5cdd).
+// Row/response shapes from Lab3/backend/supabase/migrations (feature/backend @ 4e661f0).
 // Keep in sync with API_ENDPOINTS.md if the backend changes.
 
 export type PointStatus =
@@ -80,10 +80,12 @@ export type RecyclingAction = {
   verified_at: string | null;
 };
 
+/** One per verified recycling activity, or one per claimed quest. Exactly one of the two source IDs is set. */
 export type RewardTransaction = {
   id: number;
   user_id: string;
-  recycling_action_id: number;
+  recycling_action_id: number | null;
+  quest_progress_id: number | null;
   eco_points_earned: number;
   xp_earned: number;
   created_at: string;
@@ -141,8 +143,8 @@ export type MilestoneContribution = {
 export type LeaderboardPeriod = 'week' | 'all_time';
 
 /**
- * Returned by get_leaderboard: profiles by Eco Points, lifetime or (once the backend adds it) earned this week.
- * `rank` is a row number, so ties get different ranks.
+ * Returned by get_leaderboard (lifetime Eco Points) and get_weekly_leaderboard (Eco Points from recycling verified this
+ * week). Equal totals share a rank; people with 0 points are left out.
  */
 export type LeaderboardEntry = {
   rank: number;
@@ -152,7 +154,7 @@ export type LeaderboardEntry = {
   eco_points: number;
 };
 
-/** Returned by get_community_feed: verified recycling only, newest first. */
+/** Returned by get_community_feed: verified recycling only, newest first. Names are always "Anonymous Recycler". */
 export type CommunityFeedItem = {
   activity_id: number;
   username: string;
@@ -186,7 +188,7 @@ export type QuestProgress = {
   id: number;
   user_id: string;
   quest_id: number;
-  /** 'YYYY-MM-DD': the UTC day (daily), the UTC Monday (weekly) or 1970-01-01 (one-time). */
+  /** 'YYYY-MM-DD': the Singapore day (daily), the Singapore Monday (weekly) or 1970-01-01 (one-time). */
   period_start: string;
   progress: number;
   completed_at: string | null;

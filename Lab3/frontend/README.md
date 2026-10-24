@@ -38,7 +38,7 @@ src/
 
 **Status:** all 22 screens are built. PostDetailUI and PostComposerUI only say that posts aren't on the server yet, since
 the backend has no posts, comments or likes. The check-in, reward and quest rules the server enforces (100 m radius,
-30-min cooldown, 10 a day, 15-min log window, 10 points per item, UTC quest periods) are copied into
+30-min cooldown, 10 a day, 15-min log window, 10 points per item, quest periods on Singapore time) are copied into
 `screens/earn/rules.ts`; update it if the backend changes them.
 
 Shared helpers Person B can reuse: `@/shared/location` (permission + GPS fix), `@/shared/geo` (distance/format),

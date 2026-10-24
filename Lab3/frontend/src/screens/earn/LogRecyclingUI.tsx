@@ -137,9 +137,11 @@ export default function LogRecyclingUI() {
     if (!material || !photo || !user) return;
     setSubmitting(true);
     setSubmitError(undefined);
+    let photoPath: string;
     try {
-      // The photo goes up first, so a failed upload logs nothing and the whole thing can simply be retried (UC 3.2.EX.3).
-      await api.photos.uploadRecyclingPhoto(user.id, checkIn.id, material.id, photo);
+      // The photo goes up first: the server checks it's there before accepting the log, and a failed upload logs nothing,
+      // so the whole thing can simply be retried (UC 3.2.EX.3).
+      photoPath = await api.photos.uploadRecyclingPhoto(user.id, checkIn.id, material.id, photo);
     } catch (e) {
       const err = toApiError(e);
       setSubmitError(
@@ -151,7 +153,7 @@ export default function LogRecyclingUI() {
       return;
     }
     try {
-      goToReward(await api.checkins.submitRecyclingActivity(checkIn.id, material.id, quantity));
+      goToReward(await api.checkins.submitRecyclingActivity(checkIn.id, material.id, quantity, photoPath));
     } catch (e) {
       const err = toApiError(e);
       // The backend raises plain exceptions, so its message text is the only way to tell these apart.

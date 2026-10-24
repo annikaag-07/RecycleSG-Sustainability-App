@@ -1,6 +1,6 @@
 # RecycleSG Backend API Reference (for frontend)
 
-Source: `feature/backend` @ `3eb5cdd` — `Lab3/backend/supabase/migrations/*.sql` and `Lab3/backend/API_DOCUMENTATION.md`.
+Source: `feature/backend` @ `4e661f0` — `Lab3/backend/supabase/migrations/*.sql` and `Lab3/backend/API_DOCUMENTATION.md`.
 Where the two disagree, this file follows the SQL (the SQL is what actually runs).
 
 ## How the backend works
@@ -89,7 +89,7 @@ Notes:
 | Method & URL | What it does | Request | Example response | Auth |
 |---|---|---|---|---|
 | `POST /rest/v1/rpc/create_gps_checkin` | GPS-validated check-in; returns new check-in ID | `{ "p_recycling_point_id": 1, "p_latitude": 1.3483, "p_longitude": 103.6831 }` | `17` | User |
-| `POST /rest/v1/rpc/submit_recycling_activity` | Log a recycling action against a check-in; status starts `Pending`; returns action ID | `{ "p_check_in_id": 17, "p_material_type_id": 1, "p_quantity": 4 }` | `42` | User |
+| `POST /rest/v1/rpc/submit_recycling_activity` | Log a recycling action against a check-in; status starts `Pending`; returns action ID | `{ "p_check_in_id": 17, "p_material_type_id": 1, "p_quantity": 4, "p_photo_url": "<auth uid>/check-in-17-material-1.jpg" }` — `p_photo_url` optional | `42` | User |
 | `GET /rest/v1/check_ins?select=*&order=checked_in_at.desc` | Own check-in history (RLS own rows) | — | `[{ "id": 17, "user_id": "uuid", "recycling_point_id": 1, "latitude": ..., "longitude": ..., "distance_meters": 12.4, "checked_in_at": "..." }]` | User |
 | `GET /rest/v1/recycling_actions?select=*,material_types(name)&order=created_at.desc` | Own recycling actions and their verification status | — | `[{ "id": 42, "check_in_id": 17, "material_type_id": 1, "quantity": 4, "photo_url": null, "cv_predicted_material": null, "cv_confidence": null, "verification_status": "Pending", "created_at": "...", "verified_at": null }]` | User |
 
@@ -100,17 +100,16 @@ Errors: `Authentication required`, `Invalid GPS coordinates`, `Recycling point n
 Submission rules: check-in must be yours and ≤ **15 min** old; point must accept the material; quantity 1–100;
 one action per material per check-in. Errors: `Quantity must be between 1 and 100`,
 `Check-in not found or not owned by user`, `Check-in has expired`, `Material not accepted at recycling point`,
-`Activity already submitted for this material`.
+`Activity already submitted for this material`, and for the photo `Invalid photo storage path` (not in your own folder,
+or contains `..`) and `Recycling photo not found` (not uploaded yet).
 
 **Photos** — private Storage bucket `recycling-photos` (JPEG, PNG or WebP, max 5 MB). A signed-in user can upload to,
 and read from, their own folder only: `supabase.storage.from("recycling-photos").upload("<auth uid>/<file>", bytes)`.
 No overwriting (there's no update policy).
 
 Notes:
-- **The photo isn't linked to the activity on the server**: `submit_recycling_activity` takes no photo and clients can't
-  write `recycling_actions.photo_url`. LogRecyclingUI uploads to `<auth uid>/check-in-<check_in_id>-material-<material_type_id>.<jpg|png|webp>`
-  before submitting (one activity per material per check-in, so the name is unique). The verifier can find the photo for an
-  activity from its `user_id`, `check_in_id` and `material_type_id` — or the backend adds a photo parameter and the app sends the path.
+- **Photo linking**: LogRecyclingUI uploads to `<auth uid>/check-in-<check_in_id>-material-<material_type_id>.<jpg|png|webp>`
+  first, then passes that storage path (not a signed URL) as `p_photo_url`; the server stores it in `recycling_actions.photo_url`.
 - Nothing in the repo changes `Pending` → `Verified` yet (Nick/Hareish), so rewards, quests and badges never move through the app today.
 
 ---
@@ -119,7 +118,7 @@ Notes:
 
 | Method & URL | What it does | Request | Example response | Auth |
 |---|---|---|---|---|
-| `GET /rest/v1/reward_transactions?select=*&order=created_at.desc` | Own reward history | — | `[{ "id": 3, "user_id": "uuid", "recycling_action_id": 42, "eco_points_earned": 40, "xp_earned": 40, "created_at": "..." }]` | User |
+| `GET /rest/v1/reward_transactions?select=*&order=created_at.desc` | Own reward history: one row per verified activity **or** per claimed quest | — | `[{ "id": 3, "user_id": "uuid", "recycling_action_id": 42, "quest_progress_id": null, "eco_points_earned": 40, "xp_earned": 40, "created_at": "..." }]` — quest rows have `recycling_action_id: null` and `quest_progress_id` set | User |
 | `POST /rest/v1/rpc/get_user_environmental_impact` | Own impact stats (verified actions only). `p_user_id` must equal your own ID, otherwise all zeros | `{ "p_user_id": "<auth uid>" }` | `[{ "total_verified_actions": 3, "total_recycled_units": 12, "estimated_co2_saved_kg": 1.20, "tree_equivalents": 0.060 }]` | User |
 | — (DB trigger `award_verified_recycling`) | When an action becomes `Verified`: +10 Eco Points and +10 XP per unit, `level = 1 + xp/100` | — | — | — |
 | `GET /rest/v1/quests?select=*` | Active quests | — | `[{ "id": 1, "title": "Daily Recycler", "description": "Verify 2 recycling activities today", "quest_type": "daily", "target_actions": 2, "reward_eco_points": 20, "reward_xp": 20, "is_active": true, "created_at": "..." }]` — `quest_type` ∈ `daily`, `weekly`, `one_time` | Public |
@@ -130,9 +129,9 @@ Notes:
 | — (DB triggers `track_verified_quest_progress`, `award_recycling_badges`) | When an action becomes `Verified`: +1 progress on every active quest for the current period, and any badge whose threshold the user's verified-activity count has reached | — | — | — |
 
 Level/XP/points: read from `profiles`. Quest and badge progress counts **verified activities** (one per material per check-in),
-not items. Quest periods are UTC: a day starts 00:00 UTC (08:00 Singapore), a week on Monday 00:00 UTC; one-time quests use
+not items. Quest periods follow Singapore time: a day starts at 00:00, a week on Monday 00:00; one-time quests use
 `period_start = 1970-01-01`. Claim errors: `Quest progress not found`, `Quest not completed`, `Reward already claimed`.
-Quest rewards add to `eco_points`, `available_eco_points` and `xp` but aren't written to `reward_transactions`. **No streaks.**
+Claiming adds to `eco_points`, `available_eco_points` and `xp` and writes a `reward_transactions` row. **No streaks.**
 
 ---
 
@@ -141,11 +140,10 @@ Quest rewards add to `eco_points`, `available_eco_points` and `xp` but aren't wr
 | Method & URL | What it does | Request | Example response | Auth |
 |---|---|---|---|---|
 | `POST /rest/v1/rpc/get_leaderboard` | Everyone by lifetime `eco_points`, highest first | `{ "p_limit": 50 }` — default 10, max 100 | `[{ "rank": 1, "username": "user_cb08...", "display_name": "Alex Tan", "level": 2, "eco_points": 120 }]` | Public |
+| `POST /rest/v1/rpc/get_weekly_leaderboard` | Eco Points from recycling verified since Monday 00:00 Singapore time (quest rewards not counted), highest first | `{ "p_limit": 50 }` — default 10, max 100 | same columns; `eco_points` is the weekly total | Public |
 
-All-time only so far — a weekly period is being added (see Proposed endpoints). **No friends scope** (there's no follows
-table), and no flag for the caller's own row
-(the app matches on `username` from the caller's profile). `rank` is a row number ordered by points then user id, so
-equal totals get different ranks; the app gives them the same rank. People with 0 points are included; the app leaves them out.
+Both use `RANK()`, so equal totals share a rank, and leave out people with 0 points. **No friends scope** (there's no
+follows table), and no flag for the caller's own row (the app matches on `username` from the caller's profile).
 
 ---
 
@@ -162,7 +160,7 @@ Reaching the target sets `AwaitingVerification`. It's idempotent on `p_client_re
 first result, a different amount with the same ID is refused. Errors: `Contribution amount must be positive`,
 `Request ID is required`, `Verified account required`, `Insufficient Eco Points`, `Milestone not found`,
 `Milestone unavailable` (not `Active` or past `closing_date`), `Milestone target reached`,
-`Request ID already used for a different contribution`.
+`Request ID already used for a different contribution`. Three demo milestones are seeded (`seed_demo_milestones`).
 
 ---
 
@@ -170,9 +168,9 @@ first result, a different amount with the same ID is refused. Errors: `Contribut
 
 | Method & URL | What it does | Request | Example response | Auth |
 |---|---|---|---|---|
-| `POST /rest/v1/rpc/get_community_feed` | Latest verified recycling activities, newest first | `{ "p_limit": 20 }` — default 20, max 100, no offset | `[{ "activity_id": 4, "username": "user_31e8...", "display_name": "Test Recycler", "material": "Plastic", "quantity": 4, "recycled_at": "..." }]` | Public |
+| `POST /rest/v1/rpc/get_community_feed` | Latest verified recycling activities, newest first | `{ "p_limit": 20 }` — default 20, max 100, no offset | `[{ "activity_id": 4, "username": "Anonymous Recycler", "display_name": "Anonymous Recycler", "material": "Plastic", "quantity": 4, "recycled_at": "..." }]` | Public |
 
-Every verified activity is listed, under the user's display name; there's no opt-out. **No posts, comments, likes,
+Every verified activity is listed anonymously: `username` and `display_name` are always `Anonymous Recycler`. **No posts, comments, likes,
 follows, hashtags, blocks or notifications tables**, so PostDetailUI and PostComposerUI have nothing to call.
 
 ---
@@ -205,7 +203,6 @@ role can set. That only hides admin UI; every `admin_*` function below must chec
 | `admin_list_milestones_for_review` | — | rows: `id, name, description, organisation, target_points, current_points, expected_outcome, closing_date, status, evidence_url, evidence_notes, evidence_requested_note, decided_at, decision_reason` | MilestoneVerificationUI | **Live** at `3eb5cdd`. Returns `AwaitingVerification`, `Verified` and `Rejected` milestones. Admin = row in `app_admins`. |
 | `admin_decide_milestone` | `p_milestone_id bigint, p_decision text, p_reason text, p_expected_status text` | new `status` text | MilestoneVerificationUI | `p_decision` ∈ `verify`, `reject` (reason required), `request_evidence` (note required; stays `AwaitingVerification`). Refuse if current status ≠ `p_expected_status` so two admins can't both decide (UC 7.1.EX.2). Record decision, admin, timestamp, evidence ref; notify contributors on `verify` (REQ-13.11). |
 | `admin_moderation_queue` | — | rows: `target_type ('post'\|'comment'), target_id, author_id, author_name, excerpt, report_count, reasons text[], first_reported_at` | ModerationQueueUI | Ordered by `report_count` desc (REQ-11.3). Moderator or admin. Needs Person B's posts/comments/reports tables. |
-| `get_leaderboard` (new `p_period`) | `p_limit integer default 10, p_period text default 'all_time'` | same rows as now: `rank, username, display_name, level, eco_points` | LeaderboardUI | The backend owner is adding a weekly board (2026-10-24); this is the shape the app expects. `p_period` ∈ `all_time`, `week`; for `week`, `eco_points` = verified Eco Points earned since Monday 00:00 Singapore time. Leave out 0 points; `RANK()` so equal totals share a rank. **Drop the old `get_leaderboard(integer)`** when adding this one, or PostgREST can't choose between them (PGRST203). The app calls all time without `p_period`, so it works before and after. |
 | `admin_moderate_content` | `p_target_type text, p_target_id bigint, p_content_action text, p_user_action text, p_note text` | `void` | ModerationQueueUI | `p_content_action` ∈ `dismiss`, `hide`, `delete`; `p_user_action` ∈ `none`, `warn`, `suspend`, `ban` (REQ-11.4). |
 
 **Kept on the device for now** (no backend storage; the UI says so): favourites (REQ-3.7), notification category
@@ -242,13 +239,13 @@ Raise these with the backend owner.
 | Screen | Backend status | What's missing |
 |---|---|---|
 | CheckInUI | ✅ `create_gps_checkin` | Candidates/ties come from nearby search (100 m) + local Haversine; cooldown and daily limit are worked out from `check_ins` history. Radius, cooldown, limits are copied from the SQL into `screens/earn/rules.ts` because no endpoint exposes them. Offline check-in isn't queued: the server timestamps on arrival and only allows a log within 15 min |
-| LogRecyclingUI | ✅ `submit_recycling_activity` + `recycling-photos` upload | A photo is required and uploaded before the log; it's linked to the activity by file name only (see section 3). Offline submit not queued, same 15-min reason |
+| LogRecyclingUI | ✅ `submit_recycling_activity` + `recycling-photos` upload | A photo is required, uploaded first, and its path sent as `p_photo_url`. Offline submit not queued, same 15-min reason |
 | RewardUI | ⚠️ partial | Actions stay `Pending` until Nick/Hareish's verifier exists; Verified/Rejected states work. No streaks. "Share to feed" is replaced by a link to the feed, which lists verified drops by itself |
 | EnvironmentalImpactUI | ✅ profile, impact, actions, `list_milestones` | — |
 | MilestoneContributionUI | ✅ `contribute_to_milestone`, `list_my_milestone_contributions` | — |
-| QuestsUI | ✅ `quests`, `user_quest_progress`, `claim_quest_reward` | No streaks (UC 4.1 step 5); periods are UTC, so "daily" turns over at 08:00 Singapore time, not midnight |
+| QuestsUI | ✅ `quests`, `user_quest_progress`, `claim_quest_reward` | No streaks (UC 4.1 step 5) |
 | CollectionUI | ✅ `badges`, `user_badges` | Badges don't record where they were earned, only when |
-| LeaderboardUI | ⚠️ partial — `get_leaderboard`; ⏳ `p_period` (proposed) | This week / All time toggle built; until the server takes `p_period` the app says so and shows all time. No friends board (no follows), no town. Own row matched by username |
-| FeedUI | ⚠️ partial — `get_community_feed` | Read-only list of verified drops: no Following/Discover, posts, photos, likes, comments or follows |
+| LeaderboardUI | ⚠️ partial — `get_weekly_leaderboard`, `get_leaderboard` | This week / All time both work. No friends board (no follows), no town. Own row matched by username |
+| FeedUI | ⚠️ partial — `get_community_feed` | Read-only, anonymous list of verified drops: no Following/Discover, posts, photos, likes, comments or follows |
 | PostDetailUI | ❌ none | No posts/comments/likes — screen says so and links to the feed |
 | PostComposerUI | ❌ none | No posts table or post photos — screen says so and links to the feed |

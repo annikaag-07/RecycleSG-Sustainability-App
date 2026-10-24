@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "RecycleSG",
+    "slug": "recyclesg",
+    "scheme": "recyclesg",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0E1412",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0E1412",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "RecycleSG uses your location to sort recycling points by distance and to check you in at a bin."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RecycleSG uses your photos as evidence for recycling and reports.",
+          "cameraPermission": "RecycleSG uses the camera to photograph your recycling."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

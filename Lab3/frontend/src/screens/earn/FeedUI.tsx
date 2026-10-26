@@ -16,8 +16,8 @@ const MAX = 100;
 type Feed = { items: CommunityFeedItem[]; limit: number; loadedAt: Date };
 
 /**
- * UC 5.2, as far as the server goes: verified recycling from across Singapore, newest first, without names. The server
- * has no posts, follows, likes or comments yet, so there's no Following tab and nothing to open or reply to.
+ * UC 5.2, as far as the server goes: verified recycling from across Singapore, newest first, by display name (usernames
+ * are never shown). The server has no posts, follows, likes or comments yet, so there's no Following tab and nothing to open or reply to.
  */
 export default function FeedUI() {
   const now = useNow(60_000);
@@ -103,8 +103,8 @@ export default function FeedUI() {
       )}
 
       <AppText variant="small" color="textFaint">
-        Every verified drop is shown here, without the recycler's name. Posts, photos, likes and comments aren't available
-        yet.
+        Every verified drop is shown here under the recycler's display name, or as Anonymous Recycler if they haven't set
+        one. Posts, photos, likes and comments aren't available yet.
       </AppText>
     </Screen>
   );

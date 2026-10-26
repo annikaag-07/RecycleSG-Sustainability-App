@@ -13,7 +13,10 @@ export async function getLeaderboard(limit = 50, period: LeaderboardPeriod = 'al
   return unwrap({ data, error });
 }
 
-/** The latest verified recycling across Singapore, newest first, without names. Public. The server caps `limit` at 100. */
+/**
+ * The latest verified recycling across Singapore, newest first, by display name (usernames are hidden). Public. The
+ * server caps `limit` at 100.
+ */
 export async function getCommunityFeed(limit = 20): Promise<CommunityFeedItem[]> {
   return unwrap(await supabase.rpc('get_community_feed', { p_limit: limit }));
 }

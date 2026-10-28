@@ -65,7 +65,16 @@ export function RecycleMap({ center, zoom = 16, markers, selectedId, user, route
         style={{ width: '100%', height: '100%', background: colors.surface }}
       >
         <Recenter center={center} zoom={zoom} />
-        <TileLayer url={ONEMAP_TILE_URL} attribution={ONEMAP_ATTRIBUTION} detectRetina />
+        {/* Keep layer and map limits aligned. Retina mode requests the next tile
+            zoom level, but OneMap has no usable tiles above level 19. */}
+        <TileLayer
+          url={ONEMAP_TILE_URL}
+          attribution={ONEMAP_ATTRIBUTION}
+          minZoom={ONEMAP_MIN_ZOOM}
+          maxZoom={ONEMAP_MAX_ZOOM}
+          maxNativeZoom={ONEMAP_MAX_ZOOM}
+          detectRetina={false}
+        />
         {markers.map((m) => (
           <Marker
             key={m.id}

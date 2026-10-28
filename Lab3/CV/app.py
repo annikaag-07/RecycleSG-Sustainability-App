@@ -3,12 +3,30 @@
 Run:  uvicorn app:app --reload --port 8000
 Then open http://localhost:8000 to try it in the browser, or POST an image to /classify.
 """
-from fastapi import FastAPI, File, HTTPException, UploadFile
+import os
+from fastapi import FastAPI, File, HTTPException, UploadFile, Header
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from classifier import MATERIALS, MissingKeyError, classify_image
+from verification import verify_activity
 
 app = FastAPI(title="RecycleSG CV")
+app.add_middleware(CORSMiddleware,
+    allow_origins=[s.strip() for s in os.getenv('FRONTEND_ORIGINS', 'http://localhost:8081,http://127.0.0.1:8081').split(',') if s.strip()],
+    allow_methods=['POST', 'GET'], allow_headers=['Authorization', 'Content-Type'])
+
+
+class VerificationRequest(BaseModel):
+    activity_id: int = Field(gt=0)
+
+
+@app.post('/verify')
+def verify(request: VerificationRequest, authorization: str = Header(default='')):
+    if not authorization.startswith('Bearer ') or not authorization[7:].strip():
+        raise HTTPException(401, 'Log in to verify recycling.')
+    return verify_activity(request.activity_id, authorization[7:])
 MAX_BYTES = 8 * 1024 * 1024
 ALLOWED = {"image/jpeg", "image/png", "image/webp"}
 
@@ -42,6 +60,8 @@ async def classify(file: UploadFile = File(...)):
     if file.content_type not in ALLOWED:
         raise HTTPException(415, "Upload a JPEG, PNG or WebP image.")
     data = await file.read()
+    if not data:
+        raise HTTPException(400, "Upload a non-empty image.")
     if len(data) > MAX_BYTES:
         raise HTTPException(413, "Image larger than 8 MB.")
     try:

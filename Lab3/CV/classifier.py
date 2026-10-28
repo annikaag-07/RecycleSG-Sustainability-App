@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass
 
-MATERIALS = ["plastic", "e-waste", "batteries", "clothing", "cardboard", "glass", "lighting waste"]
+MATERIALS = ["plastic", "paper", "metal", "e-waste", "batteries", "clothing", "cardboard", "glass", "lighting waste"]
 UNCLEAR = "unclear"
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 
@@ -34,7 +34,9 @@ Categories:
 - e-waste: phones, laptops, cables, chargers, small appliances, circuit boards
 - batteries: household batteries and battery packs
 - clothing: clothes, shoes, fabric, textiles
-- cardboard: cardboard boxes, paper, paper packaging
+- cardboard: cardboard boxes and corrugated cardboard packaging (not ordinary paper)
+- paper: newspapers, magazines, office paper and paper packaging (not cardboard)
+- metal: aluminium or steel cans and metal containers
 - glass: glass bottles and jars
 - lighting waste: light bulbs, fluorescent tubes, LED lamps
 - unclear: no recyclable item visible, several different materials, or the photo is too blurry or dark
@@ -43,7 +45,7 @@ Give confidence from 0 to 1 (how sure you are of the category) and a short reaso
 
 
 class GeminiResult(BaseModel):
-    material: Literal["plastic", "e-waste", "batteries", "clothing", "cardboard",
+    material: Literal["plastic", "paper", "metal", "e-waste", "batteries", "clothing", "cardboard",
                       "glass", "lighting waste", "unclear"]
     confidence: float
     reason: str
@@ -63,7 +65,7 @@ def _get_client():
         if not key:
             raise MissingKeyError("GEMINI_API_KEY is not set. See README.md.")
         from google import genai
-        _client = genai.Client(api_key=key)
+        _client = genai.Client(api_key=key, http_options={"timeout": 15000})
     return _client
 
 

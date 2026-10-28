@@ -9,7 +9,7 @@ export class ApiError extends Error {
     this.code = code;
   }
 
-  /** True when the request never reached the server, so the UI should offer a retry (NFR-QUAL-05). */
+  /** Transport failure: the server may have committed before its response was lost. */
   get isNetwork() {
     return this.code === 'network';
   }

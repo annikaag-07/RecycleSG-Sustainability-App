@@ -37,7 +37,13 @@ export function useOrigin(params: OriginParams): { origin: Origin | null; resolv
   const [resolving, setResolving] = useState(!fromParams);
 
   useEffect(() => {
-    if (fromParams) return;
+    if (fromParams) {
+      setOrigin(null);
+      setResolving(false);
+      return;
+    }
+    setOrigin(null);
+    setResolving(true);
     let cancelled = false;
     (async () => {
       try {
@@ -58,5 +64,6 @@ export function useOrigin(params: OriginParams): { origin: Origin | null; resolv
     // fromParams is derived from params; re-run only when the coordinates change.
   }, [params.lat, params.lng]);
 
-  return { origin, resolving };
+  // Route params are authoritative on every render, not only on first mount.
+  return { origin: fromParams ?? origin, resolving: fromParams ? false : resolving };
 }

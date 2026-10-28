@@ -141,7 +141,7 @@ export default function MilestoneContributionUI() {
       } catch (e) {
         const err = toApiError(e);
         // UC 3.3.EX.5: never queue an unconfirmed contribution. The same request ID makes the retry safe (EX.4).
-        if (err.isNetwork) setSubmitError('Couldn’t reach the server, so nothing was deducted. Try again when you’re back online.');
+        if (err.isNetwork) setSubmitError('Couldn’t confirm the result. Your contribution may have succeeded. Retry this confirmation when you’re back online; the same request will not deduct twice.');
         else setSubmitError(CONTRIBUTION_ERRORS[err.message] ?? err.message);
       } finally {
         setSubmitting(false);

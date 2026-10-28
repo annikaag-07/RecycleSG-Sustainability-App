@@ -77,7 +77,7 @@ export default function QuestsUI() {
       const err = toApiError(e);
       // Claimed already, e.g. on another device: the refresh shows it as done.
       if (err.message === 'Reward already claimed') await fetchData();
-      else setClaimError(err.isNetwork ? 'Couldn’t reach the server, so nothing was claimed. Try again.' : err.message);
+      else setClaimError(err.isNetwork ? 'Couldn’t confirm the claim. It may have succeeded; retry when connected to refresh the result. A quest reward can only be claimed once.' : err.message);
     } finally {
       setClaiming(undefined);
     }

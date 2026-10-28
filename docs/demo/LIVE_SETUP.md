@@ -12,7 +12,7 @@ For presentation steps use [START_HERE.md](START_HERE.md); for evidence and test
 - The frontend needs `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_VERIFICATION_URL` in `Lab3/frontend/.env`.
 - FastAPI needs `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, and `FRONTEND_ORIGINS` in `Lab3/CV/.env`; see the respective `.env.example` files. Both services were configured for the recorded live runs. Never commit these files or put server secrets in `EXPO_PUBLIC_*` variables.
 - Tested laptop URLs: Expo `http://127.0.0.1:8081`, CV `http://127.0.0.1:8000`. CORS allows localhost/127.0.0.1 on port 8081. Physical phones require reachable addresses and separate network/device validation.
-- Start services using the [frontend README](../../Lab3/frontend/README.md) and [CV README](../../Lab3/CV/README.md). The demo launcher can start them automatically once dependencies and configuration exist.
+- Start services using the [frontend README](../../Lab3/frontend/README.md) and [CV README](../../Lab3/CV/README.md). Start both in separate terminals; the [demo guide](START_HERE.md#start-the-application) lists the commands.
 
 ## Database state and preservation
 
@@ -22,7 +22,7 @@ All 33 repository migrations were applied, plus the project-specific legacy isol
 
 The private `recycling-photos` bucket accepts JPEG/PNG/WebP up to 5 MB. Browser roles cannot execute the finalizer or signup trigger directly; the verifier has explicit server read grants. Private progress rows are not anonymously readable. All public tables had RLS enabled at the recorded check.
 
-New demo accounts are created through Supabase Auth's supported admin API, with confirmed email and signup-trigger profiles. Do not insert directly into `auth.users` or treat old accounts as ready to use. `present.mjs` creates a fresh account when the saved one has checked in. Rehearsal accounts, partial attempts and contributions are retained; the separate blank-image smoke test removes only its own temporary account/photo. Never reset rewards by toggling verification status.
+New demo accounts are created through Supabase Auth's supported admin API, with confirmed email and signup-trigger profiles. Do not insert directly into `auth.users` or treat old accounts as ready to use. Prepare an account and sign in manually for the walkthrough; normal startup does not create accounts or simulate GPS. Rehearsal accounts, partial attempts and contributions are retained; the separate blank-image smoke test removes only its own temporary account/photo. Never reset rewards by toggling verification status.
 
 ## Security review record
 

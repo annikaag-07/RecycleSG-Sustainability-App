@@ -1,39 +1,42 @@
 # Five-minute demo: start here
 
 The core journey passed against real Supabase and Gemini on 2026-10-26. Photo
-suggestions were added and regression-tested afterward. GPS is intentionally
-simulated. Human classroom rehearsal remains pending; this is a classroom prototype.
+suggestions were added and regression-tested afterward. That automated run used
+explicitly simulated GPS. Human classroom rehearsal remains pending; this is a classroom prototype.
 See [testing/evidence](TESTING.md) and [hosted setup](LIVE_SETUP.md).
 
-## Launch
+## Start the application
 
-Prerequisites: Node/npm, uv, Google Chrome, frontend dependencies (`npm ci` in
-`Lab3/frontend`), launcher dependencies (`npm ci` in `Lab3/integration/tests`),
-and the configured environments described in [hosted setup](LIVE_SETUP.md).
+Configure the environments described in [hosted setup](LIVE_SETUP.md), and install
+frontend dependencies with `npm ci` in `Lab3/frontend`. Start each service in a
+separate terminal, running these commands from the repository root:
 
-Double-click `demo.command` in the repository root. If macOS doesn't execute
-it, open a terminal in the repository and run `./demo.command`.
+```sh
+cd Lab3/CV
+uv run --no-project --with-requirements requirements.txt uvicorn app:app --host 127.0.0.1 --port 8000
+```
 
-The launcher starts the app and verification server if needed, opens a separate
-Chrome window at a mobile-sized viewport, and signs in a prepared account.
-GPS follows the prepared account’s point, accuracy 5 m (**1 Beach Road** in the
-recorded run; check the address printed by the launcher). The prepared bottle photo is
-`docs/demo/assets/plastic-bottle.png`. Do not use a normal browser window instead:
-that window will not have the same simulated GPS or account session.
+```sh
+cd Lab3/frontend
+npm start -- --web --port 8081
+```
 
-Keep the terminal running. Close the launched Chrome window when finished.
-To repeat after checking in, relaunch: it creates a fresh confirmed account if
-the previous one has already checked in, avoiding cooldowns and used quests.
-Accounts and contributions from rehearsals are retained as demo data. No shared
-database reset or key rotation is performed. Internet access remains necessary.
+Open http://127.0.0.1:8081 and sign in with your prepared account. Keep both
+terminals running. Internet access is required for hosted Supabase and Gemini.
+No account creation, sign-in or GPS simulation happens automatically.
+
+Use your actual location near a Plastic-compatible point, or explicitly configure
+and disclose a simulated location for a classroom rehearsal. The recorded run
+used **1 Beach Road**, accuracy 5 m. The sample photo is
+`docs/demo/assets/plastic-bottle.png`.
 
 ## What to click and say
 
 1. **0:00–0:40 — Find.** Say: “RecycleSG helps people find suitable recycling
    points, identify materials, and see their contribution.” Search **plastic
-   bottle**, then choose **1 Beach Road**.
+   bottle**, then choose the point matching your location setup.
 2. **0:40–1:10 — Check in.** Click **Check in here**, then **Continue — log your
-   recycling**. Say: “For this classroom demonstration, location is simulated.”
+   recycling**. If using simulated GPS, say so explicitly.
 3. **1:10–2:10 — Record.** Click **Add a photo** and choose
    `docs/demo/assets/plastic-bottle.png`; show the automatic **Plastic** suggestion,
    confirm or change the selection, keep quantity **1**,
@@ -54,8 +57,9 @@ database reset or key rotation is performed. Internet access remains necessary.
 
 - Recognition slow/error: use **Retry verification** or status refresh on the
   same activity. Do not submit the same drop repeatedly.
-- Wrong account balance/cooldown: close the demo Chrome window and relaunch
-  `demo.command` for a fresh account. Do not toggle database verification flags.
+- Wrong account balance/cooldown: sign in with a fresh prepared account for the
+  exact totals below, or wait for cooldown and explain the existing balance.
+  Do not toggle database verification flags.
 - Internet/API outage: explain it honestly. Previously captured live screenshots
   are under `Lab3/integration/tests/artifacts/live/`; do not present screenshots
   or the mocked regression suite as a current live result.

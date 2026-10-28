@@ -7,8 +7,8 @@ Style reference: `Lab 1/UI-Mockups`. Backend API reference: [`/API_ENDPOINTS.md`
 
 ```bash
 cd Lab3/frontend
-npm install
-cp .env.example .env        # then fill in the anon key (see below)
+npm ci
+cp -n .env.example .env     # create only if absent; fill in Supabase and CV URLs/key
 npx expo start              # w = web, a = Android, scan QR with Expo Go for a phone
 npm run typecheck
 ```
@@ -36,7 +36,7 @@ src/
     map/            <RecycleMap> — react-native-maps on native, Leaflet on web, OneMap "Night" tiles
 ```
 
-**Status:** all 22 screens are built. PostDetailUI and PostComposerUI only say that posts aren't on the server yet, since
+**Status:** 22 screen entry points exist, with incomplete workflows listed in the API reference. PostDetailUI and PostComposerUI only say that posts aren't on the server yet, since
 the backend has no posts, comments or likes. The check-in, reward and quest rules the server enforces (100 m radius,
 30-min cooldown, 10 a day, 15-min log window, 10 points per item, quest periods on Singapore time) are copied into
 `screens/earn/rules.ts`; update it if the backend changes them.
@@ -45,12 +45,15 @@ Shared helpers Person B can reuse: `@/shared/location` (permission + GPS fix), `
 `@/shared/materials` (icons, blue-bin vs e-waste), `@/shared/hours`, `api.checkins.*` (check-in / submit activity),
 and `screens/find/useOrigin.ts` if you need the same origin as Find. Admin role: `useAuth().isAdmin / isModerator`.
 
-Features without a backend endpoint go through `api.proposed.*` — see "Proposed endpoints" in `/API_ENDPOINTS.md`.
+Most unfinished endpoints go through `api.proposed.*` (the milestone review list is already live).
+See [API contracts](../../API_ENDPOINTS.md), [test commands](../../docs/demo/TESTING.md),
+and [demo setup](../../docs/demo/START_HERE.md). Photo suggestions and reward verification require
+`EXPO_PUBLIC_VERIFICATION_URL` pointing to the [CV service](../CV/README.md).
 
 ## Conventions
 
 - Call the backend only through `api.*` from `@/shared/api`. Errors are thrown as `ApiError` (`.message` is safe to show,
-  `.isNetwork` means offer a retry).
+  `.isNetwork` means the result may be uncertain; offer a safe retry).
 - Use theme tokens (`colors`, `spacing`, `typography`) — no hard-coded hex values in screens.
 - Give every icon-only control an `accessibilityLabel` (NFR-QUAL-04).
 - Route params: `useLocalSearchParams<{ id: string }>()`; navigate with `router.push('/find/point/42')`.

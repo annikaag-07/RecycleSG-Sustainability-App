@@ -8,7 +8,7 @@ Backend for the SC2006 RecycleSG project.
 - PostgreSQL
 - Supabase Authentication
 - Supabase Storage
-- Supabase Edge Functions
+- FastAPI CV integration (see [CV setup](../CV/README.md))
 
 ## Responsibilities
 - User authentication and profiles
@@ -19,11 +19,8 @@ Backend for the SC2006 RecycleSG project.
 - Database security
 
 ## Development
-Backend development takes place on the
-feature/backend branch.
-
-Completed features will be merged into develop
-through pull requests.
+API contracts are maintained in [API_ENDPOINTS.md](../../API_ENDPOINTS.md).
+See [tests](../../docs/demo/TESTING.md) and [hosted migration mapping](../../docs/demo/LIVE_SETUP.md).
 
 ## Local Supabase Setup
 
@@ -50,7 +47,9 @@ This generates `supabase/seed.sql` from the committed
 supabase db reset
 ```
 
-This creates:
+For a fresh **local** development database only: reset deletes existing local data.
+Do not use this workflow to reset the shared hosted project. This creates:
+
 - 12,300 recycling locations
 - 49,200 recycling point/material associations
 - All backend tables, functions, and security policies
@@ -64,3 +63,6 @@ http://127.0.0.1:54323
 - Never commit Supabase service-role or secret API keys.
 - The generated `supabase/seed.sql` is intentionally ignored by Git.
 - Run the seed-generation script before resetting the database.
+
+The CSV seed inserts are not idempotent. Generate once for each fresh local reset;
+do not apply it repeatedly to an existing populated database.

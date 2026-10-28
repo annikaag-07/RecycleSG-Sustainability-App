@@ -1,16 +1,23 @@
 # Five-minute demo: start here
 
-Everything below was exercised against real Supabase and real Gemini on
-2026-10-26. GPS is intentionally simulated. This is a classroom prototype.
+The core journey passed against real Supabase and Gemini on 2026-10-26. Photo
+suggestions were added and regression-tested afterward. GPS is intentionally
+simulated. Human classroom rehearsal remains pending; this is a classroom prototype.
+See [testing/evidence](TESTING.md) and [hosted setup](LIVE_SETUP.md).
 
 ## Launch
+
+Prerequisites: Node/npm, uv, Google Chrome, frontend dependencies (`npm ci` in
+`Lab3/frontend`), launcher dependencies (`npm ci` in `Lab3/integration/tests`),
+and the configured environments described in [hosted setup](LIVE_SETUP.md).
 
 Double-click `demo.command` in the repository root. If macOS doesn't execute
 it, open a terminal in the repository and run `./demo.command`.
 
 The launcher starts the app and verification server if needed, opens a separate
 Chrome window at a mobile-sized viewport, and signs in a prepared account.
-GPS is set to **1 Beach Road**, accuracy 5 m. The prepared bottle photo is
+GPS follows the prepared account’s point, accuracy 5 m (**1 Beach Road** in the
+recorded run; check the address printed by the launcher). The prepared bottle photo is
 `docs/demo/assets/plastic-bottle.png`. Do not use a normal browser window instead:
 that window will not have the same simulated GPS or account session.
 
@@ -28,7 +35,8 @@ database reset or key rotation is performed. Internet access remains necessary.
 2. **0:40–1:10 — Check in.** Click **Check in here**, then **Continue — log your
    recycling**. Say: “For this classroom demonstration, location is simulated.”
 3. **1:10–2:10 — Record.** Click **Add a photo** and choose
-   `docs/demo/assets/plastic-bottle.png`; select **Plastic**, keep quantity **1**,
+   `docs/demo/assets/plastic-bottle.png`; show the automatic **Plastic** suggestion,
+   confirm or change the selection, keep quantity **1**,
    then **Log 1 plastic item · 10 points**. Wait for **+10 Eco Points**.
    Say: “The photo is checked by the real recognition service. Material matching
    is a prototype check, not proof that someone physically disposed of an item.”
@@ -55,18 +63,58 @@ database reset or key rotation is performed. Internet access remains necessary.
   `uv run --no-project --with-requirements requirements.txt uvicorn app:app --host 127.0.0.1 --port 8000`;
   from `Lab3/frontend`, run `npm start -- --web --port 8081`.
 
-## Verified result and limits
+## Expected results and limits
 
-Live browser automated run: **20.858 seconds**, real Supabase Auth/Storage/RPC,
-real Gemini, one Verified Plastic action with confidence 1.0, one badge, quest
-claim and contribution. Final values: lifetime 20, available 10, XP 20. Feed and
-leaderboard also passed. This is not a five-minute human rehearsal or a claim
-of model accuracy on arbitrary photos. Seed point status is Information Outdated;
-we have not verified that physical bin's present condition.
+| Stage | Lifetime points | Available points | XP |
+|---|---:|---:|---:|
+| One verified Plastic item | 10 | 10 | 10 |
+| First one-off quest claimed | 20 | 20 | 20 |
+| Contribute 10 points | 20 | 10 | 20 |
 
-Photo source/licence: [assets/README.md](assets/README.md). Test and launch code:
-`Lab3/integration/tests/live-demo.mjs` and `present.mjs`. Local account credentials
-are generated under ignored `artifacts/live/` with owner-only file permissions;
-never commit them or put service keys in browser configuration.
+Expect one earned badge, 0.10 kg illustrative CO₂ and 0.005 tree equivalents.
+Weekly leaderboard recycling points are 10; all-time points are 20. The feed
+shows the profile display name (Anonymous Recycler if unset), with username hidden.
+If showing the badge without claiming the quest instead, contribution leaves
+0 available and 10 lifetime/XP; do not mix the two scripts’ expected totals.
 
-Only remaining sign-off: two timed human runs on the actual classroom laptop/network.
+The seed marks points Information Outdated; the physical bin’s current condition
+is unverified. Recognition checks material, not quantity or physical disposal.
+Milestone points are not financial donations or proof of project completion.
+
+Keep registration/email delivery, password recovery, deletion, reporting,
+admin approval/moderation, social posting, notifications and streaks outside
+the completed demo scope. See [remaining work](TESTING.md#remaining-work-and-limits).
+
+Photo source/licence: [assets/README.md](assets/README.md). Local credentials and
+screenshots are under ignored `Lab3/integration/tests/artifacts/live/`; never
+commit them. Live scripts and account retention are described in the testing guide.
+
+## Human rehearsal checklist
+
+These are checks for the presentation setup, not claims that automated tests failed.
+
+- [ ] Record commit, date, tester, browser/device and viewport below.
+- [ ] Confirm services, internet, fresh confirmed account/profile, zero points and an unclaimed first-drop quest.
+- [ ] Confirm the prepared photo is under 5 MB, the point accepts Plastic, and the displayed suggestion/verification works.
+- [ ] Use tested GPS within 100 m with accuracy ≤100 m; disclose simulation. An address search does not replace GPS.
+- [ ] Avoid the 30-minute per-bin cooldown and 10-check-in UTC-day limit; submit within 15 minutes of check-in. A fresh account is the repeat strategy, not manual reward resets.
+- [ ] Ensure an Active milestone has at least 10 points remaining.
+- [ ] Check uncertain/unavailable verification and explicit retry, and ensure no endless spinner or incorrect success message.
+- [ ] Check activity and contribution retries do not award/deduct twice; a retake uses the new photo.
+- [ ] Return to You/Impact/Quests and confirm refreshed values.
+- [ ] Complete the whole script twice on the actual laptop/network, each within five minutes.
+
+| Sign-off field | Value |
+|---|---|
+| Commit / date / tester | NOT RUN |
+| Browser / device / viewport | NOT RUN |
+| Backend identifier (no credentials) | NOT RUN |
+| CV / location mode | Real Gemini / simulated GPS planned |
+| Script | Quest recommended |
+| First / second timed run | NOT RUN / NOT RUN |
+| Recovery checks / omitted screens | NOT RUN / none recorded |
+| Human presentation sign-off | PENDING |
+
+Mark human sign-off complete only after the walkthrough and recovery checks pass
+on the actual presentation setup. Record output/screenshot/recording paths;
+component tests and the earlier 20.858-second live automation do not replace it.

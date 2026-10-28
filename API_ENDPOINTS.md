@@ -1,11 +1,12 @@
 # RecycleSG Backend API Reference (for frontend)
 
-Source: `feature/backend` @ `5a146f5` — `Lab3/backend/supabase/migrations/*.sql` and `Lab3/backend/API_DOCUMENTATION.md`.
-Where the two disagree, this file follows the SQL (the SQL is what actually runs).
+Maintained API reference, updated 2026-10-28. Source of truth: `Lab3/backend/supabase/migrations/*.sql`,
+`Lab3/CV/app.py` and `Lab3/CV/verification.py`. Setup and evidence are linked from [Lab 3](Lab3/README.md).
 
 ## How the backend works
 
-There is **no custom server** (no Express/Node/Python app). The backend is a **Supabase** project:
+Application data and accounting use **Supabase**; photo recognition and trusted verification run in the
+**FastAPI CV service**. There is no separate Express server. Supabase provides:
 
 - **Supabase Auth** for sign-up / log-in / sessions (`/auth/v1/...`)
 - **PostgREST** auto-generated REST API over Postgres tables (`/rest/v1/<table>`)
@@ -20,7 +21,7 @@ const { data, error } = await supabase.from("material_types").select("*");
 ```
 
 **Base URL**: local `http://127.0.0.1:54321`, or the hosted project URL (ask the backend owner).
-**Every request** needs the `apikey: <anon/publishable key>` header. Authenticated requests also need
+**Every Supabase API request** needs the `apikey: <anon/publishable key>` header. Authenticated requests also need
 `Authorization: Bearer <access_token>` (supabase-js adds both automatically once signed in).
 Never put the service-role key in the app.
 
@@ -76,11 +77,11 @@ Notes:
 
 Notes:
 - `status` is one of `Available, Full, Temporarily Closed, Inaccessible, Removed, Information Outdated`. The NEA import sets **every** point to `Information Outdated` and `operating_hours` to empty.
-- Per backend docs only Plastic, Paper, Glass, Metal currently have linked locations (NEA blue bins). E-waste, batteries, clothing, lighting return `[]`.
-- No combined "nearby + material" search. Workaround: call nearby, then filter client-side using `recycling_point_materials`.
+- The repository seed links only Plastic, Paper, Glass and Metal (NEA blue bins); Cardboard, E-Waste, Batteries, Clothing and Lighting Waste have no seed links. Retrieve material IDs from the database; never assume fixed IDs.
+- No combined "nearby + material" search. The app filters nearby results client-side; limiting before filtering can miss suitable points. Paginate material-only search rather than downloading the whole catalogue.
 - **Favourites: no table/endpoint.**
 - **Report an issue: no table/endpoint.**
-- **Directions/routing: not in backend** — use OneMap routing API / Google Maps deep link from the client.
+- **Directions/routing: not in backend** — the current app hands off to Google Maps; in-app OneMap routing would require a routing token.
 
 ---
 
@@ -88,12 +89,13 @@ Notes:
 
 | Method & URL | What it does | Request | Example response | Auth |
 |---|---|---|---|---|
-| `POST /rest/v1/rpc/create_gps_checkin` | GPS-validated check-in; returns new check-in ID | `{ "p_recycling_point_id": 1, "p_latitude": 1.3483, "p_longitude": 103.6831 }` | `17` | User |
-| `POST /rest/v1/rpc/submit_recycling_activity` | Log a recycling action against a check-in; status starts `Pending`; returns action ID | `{ "p_check_in_id": 17, "p_material_type_id": 1, "p_quantity": 4, "p_photo_url": "<auth uid>/check-in-17-material-1.jpg" }` — `p_photo_url` optional | `42` | User |
+| `POST /rest/v1/rpc/create_gps_checkin` | GPS-distance-checked check-in; returns new check-in ID | `{ "p_recycling_point_id": 1, "p_latitude": 1.3483, "p_longitude": 103.6831 }` | `17` | User |
+| `POST /rest/v1/rpc/submit_recycling_activity` | Log a recycling action against a check-in; status starts `Pending`; returns action ID | `{ "p_check_in_id": 17, "p_material_type_id": 1, "p_quantity": 4, "p_photo_url": "<auth uid>/check-in-17-material-1-<request-id>.jpg" }` — `p_photo_url` optional | `42` | User |
 | `GET /rest/v1/check_ins?select=*&order=checked_in_at.desc` | Own check-in history (RLS own rows) | — | `[{ "id": 17, "user_id": "uuid", "recycling_point_id": 1, "latitude": ..., "longitude": ..., "distance_meters": 12.4, "checked_in_at": "..." }]` | User |
 | `GET /rest/v1/recycling_actions?select=*,material_types(name)&order=created_at.desc` | Own recycling actions and their verification status | — | `[{ "id": 42, "check_in_id": 17, "material_type_id": 1, "quantity": 4, "photo_url": null, "cv_predicted_material": null, "cv_confidence": null, "verification_status": "Pending", "created_at": "...", "verified_at": null }]` | User |
 
 Check-in rules (enforced server-side): within **100 m**; **30-min** cooldown per point; max **10 check-ins per UTC day**.
+Device GPS can be spoofed; distance checks do not independently prove physical presence.
 Errors: `Authentication required`, `Invalid GPS coordinates`, `Recycling point not found`, `Too far from recycling point`,
 `Check-in cooldown active. Try again after 30 minutes.`, `Daily check-in limit reached.`
 
@@ -108,9 +110,34 @@ and read from, their own folder only: `supabase.storage.from("recycling-photos")
 No overwriting (there's no update policy).
 
 Notes:
-- **Photo linking**: LogRecyclingUI uploads to `<auth uid>/check-in-<check_in_id>-material-<material_type_id>.<jpg|png|webp>`
+- **Photo linking**: LogRecyclingUI uploads to `<auth uid>/check-in-<check_in_id>-material-<material_type_id>-<request-id>.<jpg|png|webp>`
   first, then passes that storage path (not a signed URL) as `p_photo_url`; the server stores it in `recycling_actions.photo_url`.
-- Nothing in the repo changes `Pending` → `Verified` yet (Nick/Hareish), so rewards, quests and badges never move through the app today.
+- Each upload attempt gets a fresh path; collisions are errors, not reuse of previous bytes. Failed submissions can leave unused objects; cleanup is deferred.
+- The app requires a photo even though the submission RPC permits an omitted path. Verification requires a valid owned stored photo.
+- Submission response loss may mean the write succeeded. The app checks for the existing activity before retrying; verification retries reuse its ID.
+
+---
+
+## Photo recognition and verification
+
+These routes are on `EXPO_PUBLIC_VERIFICATION_URL` (locally `http://127.0.0.1:8000`), not the Supabase URL.
+Configure server-only Supabase/Gemini credentials and explicit `FRONTEND_ORIGINS`; see [CV setup](Lab3/CV/README.md).
+
+| Route | Request / access | Result |
+|---|---|---|
+| `GET /health` | Public | Service health response |
+| `POST /classify` | Public multipart `file`; JPEG/PNG/WebP, non-empty, up to 8 MB (app/storage limit is 5 MB) | `status: ok/unsure/unavailable`, `material`, `suggestion`, `confidence`, `reason`, `model`, `latency_ms`; provider failure may include diagnostic `error` |
+| `POST /verify` | User bearer token; JSON `{ "activity_id": 42 }` with positive ID | `{ "activity_id": 42, "status": "Verified", "material": "plastic", "confidence": 0.9, "message": "..." }`; status can also be Pending or Rejected |
+
+Classification preselects only a confident material accepted by the point and not already logged. Manual choices are preserved, retakes cancel stale requests, and uncertainty/outage leaves manual selection available. The 20-second suggestion timeout never creates an activity or awards points. Client recognition is not trusted for rewards.
+
+Verification authenticates the token, loads the caller's owned activity, validates its photo path, downloads the private image and runs recognition again. A confident case-insensitive material match finalizes **Verified**; a confident mismatch finalizes **Rejected**; uncertain/unavailable inference leaves **Pending**. Missing/foreign activities are hidden as 404; invalid stored photos return 422, missing/invalid auth 401, service/configuration failures 502/503, and invalid request bodies 422. Terminal retries return the recorded outcome without reclassifying.
+
+The service calls `finalize_recycling_activity(p_activity_id bigint, p_user_id uuid, p_status text, p_predicted_material text, p_confidence double precision)`, returning the activity row as a set. Only `service_role` can execute it. The function locks the owned row, validates confidence/status/material, writes the terminal status and timestamp, and returns existing terminal results unchanged. Existing database triggers award points, quests and badges; clients cannot set verification or balances directly.
+
+The UI waits up to 25 seconds for verification, then reconciles by refresh/retry. Supabase and Gemini HTTP requests have 15-second per-request timeouts; Gemini quota retries can outlast the UI wait. There is no background queue or global server-job cancellation. Never manually toggle terminal states to reset rewards.
+
+This is a material-match prototype: it does not validate quantity or physical disposal. Manual selection does not bypass verification. Rejected activities remain subject to one-material-per-check-in and cooldown rules.
 
 ---
 
@@ -132,6 +159,7 @@ Level/XP/points: read from `profiles`. Quest and badge progress counts **verifie
 not items. Quest periods follow Singapore time: a day starts at 00:00, a week on Monday 00:00; one-time quests use
 `period_start = 1970-01-01`. Claim errors: `Quest progress not found`, `Quest not completed`, `Reward already claimed`.
 Claiming adds to `eco_points`, `available_eco_points` and `xp` and writes a `reward_transactions` row. **No streaks.**
+Impact uses illustrative factors: 0.1 kg CO₂ per unit and one tree equivalent per 20 kg CO₂; no measured saving or actual planting is established.
 
 ---
 
@@ -187,31 +215,31 @@ review, gamification config and moderation have no API.
 
 ## Proposed endpoints (frontend is already wired to these)
 
-The Person A screens call these through `src/shared/api/proposed.ts`. They **do not exist yet**: PostgREST answers
-`PGRST202` (function not found), which the app turns into a clear "not available on the server yet" state. Once the
-backend owner adds them with these names and signatures, the screens work with no frontend change. Names and shapes are
-a proposal — if the backend prefers different ones, only `proposed.ts` needs updating.
+These contracts are called through `src/shared/api/proposed.ts`. **Only the admin milestone-list RPC below
+is implemented**; the others are proposals. Missing functions return `PGRST202`, which the app presents as
+"not available on the server yet". Implementing the proposed signatures still requires end-to-end validation,
+authorisation and any necessary UI/data-flow changes.
 
-**Admin role.** The app reads `auth.users.raw_app_meta_data.role` (`'admin'` or `'moderator'`), which only the service
-role can set. That only hides admin UI; every `admin_*` function below must check the role itself, e.g.
-`IF (auth.jwt() -> 'app_metadata' ->> 'role') IS DISTINCT FROM 'admin' THEN RAISE EXCEPTION 'Administrators only'; END IF;`
-(NFR-SEC-09).
+**Admin role.** The UI reads server-controlled app metadata; current SQL uses `app_admins`.
+Reconcile these before completing admin workflows. UI gating is not authorisation: each admin RPC must
+enforce the chosen server policy (NFR-SEC-09).
 
 | RPC | Args | Returns | Used by | Notes |
 |---|---|---|---|---|
 | `submit_point_report` | `p_recycling_point_id bigint, p_category text, p_description text, p_client_request_id uuid` | `bigint` report id | ReportIssueUI | `p_category` ∈ `full`, `missing_or_damaged`, `wrong_info`, `contaminated`. **Idempotent on `p_client_request_id`** — the app retries queued reports with the same id (NFR-QUAL-06). Status starts `Pending`; must not change what other users see (UC 2.3). Authenticated + verified users only. |
-| `delete_my_account` | — | `void` | SettingsUI | `SECURITY DEFINER`; deletes `auth.users` row for `auth.uid()` (profiles and history cascade). REQ-1.7. |
+| `delete_my_account` | — | `void` | SettingsUI | REQ-1.7. Requires a trusted deletion workflow, photo cleanup and a retention/anonymisation policy: milestone contributions currently restrict user deletion, so deleting Auth alone is insufficient. |
 | `admin_list_milestones_for_review` | — | rows: `id, name, description, organisation, target_points, current_points, expected_outcome, closing_date, status, evidence_url, evidence_notes, evidence_requested_note, decided_at, decision_reason` | MilestoneVerificationUI | **Live** at `3eb5cdd`. Returns `AwaitingVerification`, `Verified` and `Rejected` milestones. Admin = row in `app_admins`. |
 | `admin_decide_milestone` | `p_milestone_id bigint, p_decision text, p_reason text, p_expected_status text` | new `status` text | MilestoneVerificationUI | `p_decision` ∈ `verify`, `reject` (reason required), `request_evidence` (note required; stays `AwaitingVerification`). Refuse if current status ≠ `p_expected_status` so two admins can't both decide (UC 7.1.EX.2). Record decision, admin, timestamp, evidence ref; notify contributors on `verify` (REQ-13.11). |
 | `admin_moderation_queue` | — | rows: `target_type ('post'\|'comment'), target_id, author_id, author_name, excerpt, report_count, reasons text[], first_reported_at` | ModerationQueueUI | Ordered by `report_count` desc (REQ-11.3). Moderator or admin. Needs Person B's posts/comments/reports tables. |
 | `admin_moderate_content` | `p_target_type text, p_target_id bigint, p_content_action text, p_user_action text, p_note text` | `void` | ModerationQueueUI | `p_content_action` ∈ `dismiss`, `hide`, `delete`; `p_user_action` ∈ `none`, `warn`, `suspend`, `ban` (REQ-11.4). |
 
 **Kept on the device for now** (no backend storage; the UI says so): favourites (REQ-3.7), notification category
-toggles (REQ-10.3), home location (REQ-2.2), and reports waiting to be sent. Each lives in one small module under
-`src/screens/find/` so it can be swapped for an API call later.
+toggles (REQ-10.3), home location (REQ-2.2), and reports waiting to be sent. Preferences/favourites live under `src/screens/find/`; the report outbox lives in `shared/api/proposed.ts`.
+The outbox currently uses one device-wide key and retries on auth changes; account scoping and retry behaviour need completion before enabling reports.
 
-**Backend config request:** reset/verification emails redirect to `http://127.0.0.1:3000` (`site_url`). Please add
-`http://localhost:8081` and `recyclesg://` to `auth.additional_redirect_urls` in `config.toml` so links open the app.
+**Auth configuration gap:** local `site_url` is `http://127.0.0.1:3000`, while Expo uses 8081.
+Configure the intended web/native redirect allowlist and validate callback handling; adding `recyclesg://`
+alone does not implement native recovery. Email delivery and reset flows are outside recorded demo sign-off.
 
 ---
 
@@ -219,29 +247,29 @@ toggles (REQ-10.3), home location (REQ-2.2), and reports waiting to be sent. Eac
 
 Raise these with the backend owner.
 
-### Person A (feature/ui-1) — all 11 screens built
+### Find, account and administration (UI-1)
 
 | Screen | Backend status | What still depends on the backend |
 |---|---|---|
 | LoginUI | ✅ Supabase Auth | Attempt counter ("3 attempts left") not exposed — app shows Supabase's rate-limit message instead; Singpass not configured |
 | RegistrationUI | ✅ Supabase Auth | Email verification disabled locally; terms acceptance stored in user metadata (no consent table); Singpass not configured |
-| MapUI | ✅ `search_nearby_recycling_points` + `recycling_points` select | Status is "Information Outdated" and hours are empty for every NEA point; **no seed data locally** |
+| MapUI | ✅ `search_nearby_recycling_points` + `recycling_points` select | Status is "Information Outdated" and hours are empty for every NEA point; generate the seed for a fresh local database |
 | SearchResultsUI | ✅ nearby + client-side material filter | Item→material mapping is a keyword table in the app (`shared/itemCatalog.ts`); only blue-bin materials have points in the dataset |
 | RecyclingPointDetailUI | ✅ `recycling_points` select | `operating_hours` empty; favourites kept on device (no table) |
 | DirectionsUI | ✅ Google Maps hand-off (no key) | In-app route + step list need a OneMap routing token |
 | ReportIssueUI | ⏳ `submit_point_report` (proposed) | Reports are queued on the device until the RPC exists; photo upload needs a storage bucket |
-| ProfileUI | ✅ profile, impact, check-ins, actions | Streak and badges not tracked by the backend; avatar upload needs storage |
+| ProfileUI | ✅ profile, impact, check-ins, actions | Earned badge counts work; streaks and avatar upload remain unfinished |
 | SettingsUI | ✅ sign-out, password reset; ⏳ `delete_my_account` | Notification prefs + home location on device; profile visibility needs posts on the server |
 | MilestoneVerificationUI | ✅ `admin_list_milestones_for_review`; ⏳ `admin_decide_milestone` (proposed) | Decisions can't be saved yet; the server's admin check (`app_admins`) and the app's (`app_metadata.role`) differ |
 | ModerationQueueUI | ⏳ `admin_moderation_*` (proposed) | Needs posts/comments/reports tables (Person B + backend) |
 
-### Person B (feature/ui-2) — all 11 screens built
+### Recycling, progress and community (UI-2)
 
 | Screen | Backend status | What's missing |
 |---|---|---|
 | CheckInUI | ✅ `create_gps_checkin` | Candidates/ties come from nearby search (100 m) + local Haversine; cooldown and daily limit are worked out from `check_ins` history. Radius, cooldown, limits are copied from the SQL into `screens/earn/rules.ts` because no endpoint exposes them. Offline check-in isn't queued: the server timestamps on arrival and only allows a log within 15 min |
-| LogRecyclingUI | ✅ `submit_recycling_activity` + `recycling-photos` upload | A photo is required, uploaded first, and its path sent as `p_photo_url`. Offline submit not queued, same 15-min reason |
-| RewardUI | ⚠️ partial | Actions stay `Pending` until Nick/Hareish's verifier exists; Verified/Rejected states work. No streaks. "Share to feed" is replaced by a link to the feed, which lists verified drops by itself |
+| LogRecyclingUI | ✅ `submit_recycling_activity` + `recycling-photos` upload | Photo selection calls `/classify`; submission uploads the chosen photo and sends its path as `p_photo_url`. Offline submit is not queued because of the 15-minute window |
+| RewardUI | ✅ trusted `/verify`, refresh and retry | Uncertain/unavailable results stay Pending; older-action retrieval is limited by history queries. No streaks; verified drops appear in the read-only feed |
 | EnvironmentalImpactUI | ✅ profile, impact, actions, `list_milestones` | — |
 | MilestoneContributionUI | ✅ `contribute_to_milestone`, `list_my_milestone_contributions` | — |
 | QuestsUI | ✅ `quests`, `user_quest_progress`, `claim_quest_reward` | No streaks (UC 4.1 step 5) |
@@ -250,3 +278,11 @@ Raise these with the backend owner.
 | FeedUI | ⚠️ partial — `get_community_feed` | Read-only list of verified drops by display name (usernames hidden): no Following/Discover, posts, photos, likes, comments or follows |
 | PostDetailUI | ❌ none | No posts/comments/likes — screen says so and links to the feed |
 | PostComposerUI | ❌ none | No posts table or post photos — screen says so and links to the feed |
+
+## Ownership and maintenance
+
+Backend owns migrations, data, RPCs and security; Pranav/UI-1 owns Find/account/admin screens;
+Parth/UI-2 owns recycling/progress/community screens; Hareish owns CV recognition; Nick owns
+system integration and the verification bridge. Coordinate schema/API changes with the relevant owner.
+Use existing RPCs and typed wrappers rather than writing protected tables directly. Historical
+branch/merge provenance and test evidence are in [TESTING.md](docs/demo/TESTING.md).

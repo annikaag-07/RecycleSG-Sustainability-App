@@ -57,5 +57,6 @@ real upload transport/permissions, model accuracy, map tiles, actual GPS, Androi
 or iOS. Parallel finalization calls are also checked in the SQL suite, but PGlite
 is a single-engine test and is not a production concurrency benchmark.
 
-The authoritative acceptance gate and remaining live checks are in
-`../../../docs/demo/DEMO_ACCEPTANCE.md`. Never replace live sign-off with these results.
+The [demo guide](../../../docs/demo/START_HERE.md#human-rehearsal-checklist) owns
+human presentation sign-off. [Testing and evidence](../../../docs/demo/TESTING.md)
+records component and live checks. Never replace live sign-off with mocked results.

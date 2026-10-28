@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -42,6 +42,10 @@ export default function LogRecyclingUI() {
   const [photo, setPhoto] = useState<Photo>();
   const [photoError, setPhotoError] = useState<string>();
   const [cameraDenied, setCameraDenied] = useState(false);
+  const [recognition, setRecognition] = useState<{ loading: boolean; message: string; warning?: boolean }>();
+  const recognitionRequest = useRef<AbortController | null>(null);
+  const manuallySelected = useRef(false);
+  useEffect(() => () => { recognitionRequest.current?.abort(); }, []);
   // The server's clock decides expiry; this catches the case where the device clock disagrees.
   const [expiredOnServer, setExpiredOnServer] = useState(false);
 
@@ -105,6 +109,34 @@ export default function LogRecyclingUI() {
   const guidance = material && dropGuidance(material.name);
   const points = quantity * POINTS_PER_ITEM;
 
+  const analysePhoto = async (selectedPhoto: Photo) => {
+    recognitionRequest.current?.abort();
+    const request = new AbortController();
+    recognitionRequest.current = request;
+    setRecognition({ loading: true, message: 'Analysing photo… You can also choose the material below.' });
+    try {
+      const result = await api.classification.classifyPhoto(selectedPhoto, request.signal);
+      if (request.signal.aborted) return;
+      if (result.status !== 'ok' || !result.material) {
+        setRecognition({ loading: false, warning: true, message: result.status === 'unsure'
+          ? 'Could not confidently identify this photo. Choose the material below, or try a clearer photo.'
+          : 'Photo recognition is unavailable. Choose the material below, or retry.' });
+        return;
+      }
+      const suggested = point.materials.find((m) => m.name.toLowerCase() === result.material!.toLowerCase());
+      if (!suggested) {
+        setRecognition({ loading: false, warning: true, message: `Detected ${result.material}, which this point does not list as accepted. Check the photo and material, or choose another recycling point.` });
+      } else if (loggedIds.has(suggested.id)) {
+        setRecognition({ loading: false, warning: true, message: `Detected ${suggested.name}, which you already logged at this check-in. Each material can only be logged once.` });
+      } else {
+        if (!manuallySelected.current) setMaterialId(suggested.id);
+        setRecognition({ loading: false, message: `Suggested ${suggested.name}. ${manuallySelected.current ? 'Your manual selection is unchanged. ' : ''}Confirm or change the selection below before logging.` });
+      }
+    } catch (e) {
+      if (!request.signal.aborted) setRecognition({ loading: false, warning: true, message: toApiError(e).message });
+    }
+  };
+
   // UC 3.2 step 2 and AC.3 (retake).
   const pickPhoto = async (source: 'camera' | 'library') => {
     setPhotoError(undefined);
@@ -124,7 +156,11 @@ export default function LogRecyclingUI() {
         return setPhotoError('That photo is over 5 MB. Retake it, or choose a smaller one.');
       }
       setCameraDenied(false);
-      setPhoto({ uri: asset.uri, base64: asset.base64, mimeType });
+      const selectedPhoto = { uri: asset.uri, base64: asset.base64, mimeType };
+      setPhoto(selectedPhoto);
+      setMaterialId(undefined);
+      manuallySelected.current = false;
+      void analysePhoto(selectedPhoto);
     } catch (e) {
       setPhotoError(toApiError(e).message);
     }
@@ -135,6 +171,8 @@ export default function LogRecyclingUI() {
 
   const onSubmit = async () => {
     if (!material || !photo || !user) return;
+    recognitionRequest.current?.abort();
+    setRecognition(undefined);
     setSubmitting(true);
     setSubmitError(undefined);
     let photoPath: string;
@@ -170,7 +208,7 @@ export default function LogRecyclingUI() {
       // UC 3.2.EX.1 asks for an offline queue, but the server only accepts a log within 15 minutes of the
       // check-in, so a queued log would usually be refused on upload. Keep the form and offer a retry instead.
       setSubmitError(
-        err.isNetwork ? `Couldn't reach the server, so nothing was logged. Try again before ${clockTime(deadline)}.` : err.message,
+        err.isNetwork ? `Couldn't confirm the submission. It may have been saved; retry before ${clockTime(deadline)} to recover the existing log.` : err.message,
       );
     } finally {
       setSubmitting(false);
@@ -196,7 +234,7 @@ export default function LogRecyclingUI() {
         // UC 3.2.EX.4: a stale check-in is not accepted; ask for a fresh one.
         <>
           <Banner tone="warning" title="This check-in has expired">
-            {`Recycling has to be logged within ${LOG_WINDOW_MIN} min of checking in. Check in again at the bin to log this drop.`}
+            {`Recycling has to be logged within ${LOG_WINDOW_MIN} min of checking in. You need a fresh check-in; the same bin may still be on cooldown. The check-in screen shows when it is available.`}
           </Banner>
           <Button label="Check in again" onPress={() => router.replace(`/find/check-in/${point.id}`)} />
         </>
@@ -252,6 +290,15 @@ export default function LogRecyclingUI() {
           </Card>
 
           <Card label="What did you put in?">
+            {recognition && (
+              <Banner tone={recognition.warning ? 'warning' : 'info'} title={recognition.loading ? 'Analysing photo…' : 'Photo suggestion'}>
+                <AppText accessibilityLiveRegion="polite">{recognition.message}</AppText>
+                {recognition.loading && <ActivityIndicator color={colors.text} />}
+              </Banner>
+            )}
+            {photo && recognition?.warning && !recognition.loading && (
+              <Button label="Retry photo recognition" variant="ghost" disabled={submitting} onPress={() => void analysePhoto(photo)} />
+            )}
             {point.materials.length === 0 ? (
               // The server refuses any material the point doesn't list, so there's nothing to offer.
               <AppText color="textMuted">This point doesn't list what it accepts, so recycling can't be logged here.</AppText>
@@ -261,7 +308,7 @@ export default function LogRecyclingUI() {
                   loggedIds.has(m.id) ? (
                     <Chip key={m.id} label={`${m.name} · logged`} />
                   ) : (
-                    <Chip key={m.id} label={m.name} selected={m.id === materialId} onPress={() => setMaterialId(m.id)} />
+                    <Chip key={m.id} label={m.name} selected={m.id === materialId} onPress={() => { manuallySelected.current = true; setMaterialId(m.id); }} />
                   ),
                 )}
               </View>

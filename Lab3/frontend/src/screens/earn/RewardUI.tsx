@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import {
@@ -40,6 +40,9 @@ export default function RewardUI() {
   const { user } = useAuth();
   const now = useNow();
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
+  const [verifying, setVerifying] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState<string>();
+  const attempted = useRef<number | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -73,9 +76,29 @@ export default function RewardUI() {
     }
   }, [actionId, user]);
 
+  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+
+  const verify = useCallback(async () => {
+    setVerifying(true);
+    setVerificationMessage(undefined);
+    try {
+      const result = await api.verification.verifyActivity(actionId);
+      setVerificationMessage(result.message);
+    } catch (e) {
+      setVerificationMessage(toApiError(e).message);
+    } finally {
+      // Reconcile even a lost response: the server may already have finalized.
+      await fetchData();
+      setVerifying(false);
+    }
+  }, [actionId, fetchData]);
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (load.kind === 'ready' && load.action.verification_status === 'Pending' && attempted.current !== actionId) {
+      attempted.current = actionId;
+      void verify();
+    }
+  }, [load, actionId, verify]);
 
   const done = () => (router.canGoBack() ? router.back() : router.replace('/find'));
 
@@ -159,6 +182,10 @@ export default function RewardUI() {
             Once verified, the drop also appears in the community feed under your display name, or as Anonymous Recycler if you
             haven't set one.
           </AppText>
+          {verificationMessage && <AppText color="warning">{verificationMessage}</AppText>}
+          <Button label={verifying ? 'Checking photo…' : 'Retry verification'} loading={verifying} onPress={verify} />
+          <Button label="Refresh status" variant="secondary" disabled={verifying} onPress={fetchData} />
+          <AppText variant="small" color="textFaint">Prototype check: recognized material must match your selection. This is not proof of physical disposal.</AppText>
         </Card>
       )}
       {status === 'Rejected' && (

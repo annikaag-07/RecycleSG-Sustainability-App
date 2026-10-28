@@ -1,6 +1,7 @@
 // Recycling photos go to the private `recycling-photos` bucket, under the signed-in user's own folder (storage RLS).
 import { supabase } from './supabase';
 import { ApiError, toApiError } from './errors';
+import { newRequestId } from './proposed';
 
 const BUCKET = 'recycling-photos';
 /** The bucket's limits (recycling_photo_storage migration). */
@@ -12,16 +13,17 @@ export type PhotoFile = { base64: string; mimeType: string };
 const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 /**
- * `{user id}/check-in-{check-in id}-material-{material id}.{ext}`. There's one activity per material per check-in, so the
- * name is unique; the path is also passed to submit_recycling_activity, which stores it on the activity.
+ * A fresh object per upload attempt prevents a retaken photo from reusing stale bytes.
+ * The activity RPC enforces one activity per material/check-in and stores this exact path.
  */
 export function recyclingPhotoPath(userId: string, checkInId: number, materialTypeId: number, mimeType: string) {
-  return `${userId}/check-in-${checkInId}-material-${materialTypeId}.${EXT[mimeType] ?? 'jpg'}`;
+  return `${userId}/check-in-${checkInId}-material-${materialTypeId}-${newRequestId()}.${EXT[mimeType] ?? 'jpg'}`;
 }
 
 /**
- * Uploads the photo for one material on one check-in and returns its path. The bucket doesn't allow overwriting, so if a
- * photo is already there (an earlier attempt uploaded it but the log itself failed) that one is kept and this succeeds.
+ * Uploads the chosen photo and returns its path. Never overwrite an existing photo
+ * or silently treat an object collision as success. Failed submissions can leave
+ * unused objects; automatic cleanup is outside the classroom-demo scope.
  */
 export async function uploadRecyclingPhoto(userId: string, checkInId: number, materialTypeId: number, photo: PhotoFile): Promise<string> {
   if (!PHOTO_TYPES.includes(photo.mimeType)) {
@@ -33,7 +35,7 @@ export async function uploadRecyclingPhoto(userId: string, checkInId: number, ma
   }
   const path = recyclingPhotoPath(userId, checkInId, materialTypeId, photo.mimeType);
   const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, { contentType: photo.mimeType, upsert: false });
-  if (error && !/already exists/i.test(error.message)) throw toApiError(error);
+  if (error) throw toApiError(error);
   return path;
 }
 

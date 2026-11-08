@@ -7,6 +7,7 @@ import { api, toApiError, type EnvironmentalImpact, type Profile, type Recycling
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, EmptyState, Header, Screen, TextField } from '@/shared/components';
 import { colors, radius, spacing } from '@/shared/theme';
+import { LogoutButton } from './LogoutButton';
 
 /** Backend reward trigger: level = 1 + floor(xp / 100) (20261014090646_gamification_rewards.sql). */
 const XP_PER_LEVEL = 100;
@@ -79,6 +80,8 @@ export default function ProfileUI() {
           {error}
         </Banner>
         <Button label="Try again" onPress={load} />
+        {/* Logging out must not depend on the profile loading. */}
+        <LogoutButton />
       </Screen>
     );
   }
@@ -183,6 +186,13 @@ export default function ProfileUI() {
       )}
 
       {error && <Banner tone="warning">Couldn't refresh: {error}</Banner>}
+
+      <Card label="Account">
+        <AppText variant="small" color="textMuted">
+          Signed in as {user.email}
+        </AppText>
+        <LogoutButton />
+      </Card>
     </Screen>
   );
 }

@@ -11,7 +11,7 @@ class VerificationTests(unittest.TestCase):
         gateway = Mock()
         gateway.user.return_value = {'id': 'owner'}
         gateway.activity.return_value = {'id': 1, 'user_id': 'owner', 'verification_status': 'Pending',
-                                         'photo_url': 'owner/photo.png', 'material_type_id': 1}
+                                         'photo_url': 'owner/photo.png', 'material_type_id': 1, 'quantity': 3}
         gateway.photo.return_value = (b'image', 'image/png')
         gateway.material.return_value = 'Plastic'
         gateway.finalize.side_effect = lambda a, status, result: {
@@ -24,6 +24,21 @@ class VerificationTests(unittest.TestCase):
         self.assertEqual(result['status'], 'Verified')
         gateway.user.assert_called_once_with('token')
         gateway.activity.assert_called_once_with(1, 'owner')
+
+    def test_impact_only_counts_persisted_verified_quantity(self):
+        for status, expected in [('Verified', .3), ('Rejected', 0), ('Pending', 0)]:
+            gateway = self.gateway()
+            gateway.activity.return_value['verification_status'] = status
+            result = verify_activity(1, 'token', gateway, lambda *args: {'status': 'unsure'})
+            self.assertEqual(result['activity_impact']['estimated_co2_saved_kg'], expected)
+            self.assertEqual(result['activity_impact']['basis'], 'illustrative_per_item_v1')
+            self.assertTrue(result['activity_impact']['is_estimate'])
+
+    def test_competing_finalizer_result_controls_impact(self):
+        gateway = self.gateway()
+        gateway.finalize.side_effect = lambda a, *args: {**a, 'verification_status': 'Rejected'}
+        result = verify_activity(1, 'token', gateway, lambda *args: {'status': 'ok', 'material': 'plastic', 'confidence': .9})
+        self.assertEqual(result['activity_impact']['estimated_co2_saved_kg'], 0)
 
     def test_mismatch_rejects(self):
         result = verify_activity(1, 'token', self.gateway(), lambda *args: {'status': 'ok', 'material': 'glass', 'confidence': .9})

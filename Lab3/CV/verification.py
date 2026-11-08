@@ -65,9 +65,14 @@ class SupabaseGateway:
 
 
 def outcome(activity, message):
+    # Same illustrative formula as get_user_environmental_impact; only the saved
+    # state counts. Gemini never supplies weights, carbon values or reward totals.
+    units = activity['quantity'] if activity['verification_status'] == 'Verified' else 0
     return {'activity_id': activity['id'], 'status': activity['verification_status'],
             'material': activity.get('cv_predicted_material'),
-            'confidence': activity.get('cv_confidence'), 'message': message}
+            'confidence': activity.get('cv_confidence'), 'message': message,
+            'activity_impact': {'estimated_co2_saved_kg': round(units * .1, 2),
+                                'is_estimate': True, 'basis': 'illustrative_per_item_v1'}}
 
 
 def verify_activity(activity_id, token, gateway=None, classify=None):

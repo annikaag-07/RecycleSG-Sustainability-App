@@ -12,7 +12,7 @@ const STATUS: Record<MilestoneStatus, { label: string; color: string }> = {
   Active: { label: 'Collecting', color: colors.textMuted },
   AwaitingVerification: { label: 'Awaiting verification', color: colors.warning },
   Verified: { label: 'Verified outcome', color: colors.success },
-  VerificationRejected: { label: 'Verification rejected', color: colors.danger },
+  Rejected: { label: 'Verification rejected', color: colors.danger },
 };
 
 type Load = { kind: 'loading' } | { kind: 'ready' } | { kind: 'notAvailable' } | { kind: 'error'; message: string };
@@ -39,7 +39,13 @@ function Verification() {
       setLoad({ kind: 'ready' });
     } catch (e) {
       const err = toApiError(e);
-      setLoad(err.code === 'not_available' ? { kind: 'notAvailable' } : { kind: 'error', message: err.message });
+      setLoad(
+        err.code === 'not_available'
+          ? { kind: 'notAvailable' }
+          : err.code === '42501'
+            ? { kind: 'error', message: "The server says this account isn't an administrator." }
+            : { kind: 'error', message: err.message },
+      );
     }
   }, []);
 
@@ -62,7 +68,7 @@ function Verification() {
   }
 
   const awaiting = items.filter((m) => m.status === 'AwaitingVerification');
-  const decided = items.filter((m) => m.status === 'Verified' || m.status === 'VerificationRejected');
+  const decided = items.filter((m) => m.status === 'Verified' || m.status === 'Rejected');
 
   return (
     <Screen scroll>

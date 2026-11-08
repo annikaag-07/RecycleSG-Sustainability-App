@@ -1,15 +1,25 @@
 import type { ReactNode } from 'react';
+import { ActivityIndicator } from 'react-native';
 
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { EmptyState, Header, Screen } from '@/shared/components';
+import { colors } from '@/shared/theme';
 
 /**
  * UC 7.1.EX.4: non-admins get a plain "not authorised" screen and never see the controls.
- * This is UI only — the proposed admin RPCs must also check the role on the server (NFR-SEC-09).
+ * Admin status comes from the backend's is_app_admin(); the admin RPCs check it again server-side (NFR-SEC-09).
  */
 export function AdminGate({ title, need, children }: { title: string; need: 'admin' | 'moderator'; children: ReactNode }) {
-  const { user, isAdmin, isModerator } = useAuth();
+  const { user, isAdmin, isModerator, roleChecked } = useAuth();
   const allowed = need === 'admin' ? isAdmin : isModerator;
+  if (user && !roleChecked) {
+    return (
+      <Screen>
+        <Header title={title} leading="back" />
+        <ActivityIndicator color={colors.text} />
+      </Screen>
+    );
+  }
   if (!user || !allowed) {
     return (
       <Screen>

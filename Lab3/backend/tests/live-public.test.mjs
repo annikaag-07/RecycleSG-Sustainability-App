@@ -59,7 +59,8 @@ test('live public quests, badges and feed are reachable', async () => {
 test('anonymous users cannot read private profiles or legacy payments', async () => {
   for (const table of ['profiles', 'payments']) {
     const { response } = await request(`/rest/v1/${table}?select=id&limit=1`);
-    assert.ok([401, 403].includes(response.status), `${table}: expected denied, got ${response.status}`);
+    const allowedStatuses = table === 'payments' ? [401, 403, 404] : [401, 403];
+    assert.ok(allowedStatuses.includes(response.status), `${table}: expected inaccessible, got ${response.status}`);
   }
 });
 

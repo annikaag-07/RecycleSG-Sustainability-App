@@ -125,7 +125,7 @@ export type MilestoneForReview = {
 
 export type MilestoneDecision = 'verify' | 'reject' | 'request_evidence';
 
-/** Proposed RPC: admin_list_milestones_for_review() → MilestoneForReview[] (awaiting first, then decided). */
+/** Live on the backend (milestone_system migration): admin_list_milestones_for_review() → MilestoneForReview[]. Admins only (42501 otherwise). */
 export function listMilestonesForReview() {
   return rpc<MilestoneForReview[]>('admin_list_milestones_for_review');
 }

@@ -54,9 +54,16 @@ export async function signIn(email: string, password: string) {
   return data;
 }
 
+/**
+ * REQ-1.6: ends the session. Tries to revoke it on the server first; if that request fails
+ * (e.g. offline), supabase-js keeps the stored session, so fall back to clearing it on this device —
+ * logging out must always work.
+ */
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
-  if (error) throw toApiError(error);
+  if (!error) return;
+  const local = await supabase.auth.signOut({ scope: 'local' });
+  if (local.error) throw toApiError(local.error);
 }
 
 export async function sendPasswordReset(email: string) {

@@ -9,6 +9,7 @@ import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, Header, Screen, TextField } from '@/shared/components';
 import { getLocationPermission, openAppSettings, requestLocationPermission, type PermissionInfo } from '@/shared/location';
 import { colors, radius, spacing } from '@/shared/theme';
+import { LogoutButton } from './LogoutButton';
 import { titleCase } from './pointDisplay';
 import {
   DEFAULT_NOTIFICATION_PREFS,
@@ -233,7 +234,7 @@ function PermissionSection() {
 }
 
 function AccountSection({ email }: { email: string }) {
-  const [busy, setBusy] = useState<'reset' | 'signout' | 'delete'>();
+  const [busy, setBusy] = useState<'reset' | 'delete'>();
   const [message, setMessage] = useState<{ tone: 'info' | 'error'; text: string }>();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [typed, setTyped] = useState('');
@@ -247,17 +248,6 @@ function AccountSection({ email }: { email: string }) {
     } catch (e) {
       setMessage({ tone: 'error', text: toApiError(e).message });
     } finally {
-      setBusy(undefined);
-    }
-  };
-
-  const signOut = async () => {
-    setBusy('signout');
-    try {
-      await api.auth.signOut();
-      router.replace('/login');
-    } catch (e) {
-      setMessage({ tone: 'error', text: toApiError(e).message });
       setBusy(undefined);
     }
   };
@@ -288,7 +278,7 @@ function AccountSection({ email }: { email: string }) {
       <AppText color="textMuted">Signed in as {email}</AppText>
       {message && <Banner tone={message.tone}>{message.text}</Banner>}
       <Button label="Change password" variant="secondary" onPress={sendReset} loading={busy === 'reset'} disabled={!!busy} />
-      <Button label="Log out" variant="secondary" onPress={signOut} loading={busy === 'signout'} disabled={!!busy} />
+      <LogoutButton disabled={!!busy} />
       {!confirmDelete ? (
         <Button label="Delete account and data" variant="ghost" onPress={() => setConfirmDelete(true)} disabled={!!busy} />
       ) : (

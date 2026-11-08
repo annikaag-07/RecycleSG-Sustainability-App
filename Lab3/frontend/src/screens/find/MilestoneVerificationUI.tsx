@@ -39,7 +39,13 @@ function Verification() {
       setLoad({ kind: 'ready' });
     } catch (e) {
       const err = toApiError(e);
-      setLoad(err.code === 'not_available' ? { kind: 'notAvailable' } : { kind: 'error', message: err.message });
+      setLoad(
+        err.code === 'not_available'
+          ? { kind: 'notAvailable' }
+          : err.code === '42501'
+            ? { kind: 'error', message: "The server says this account isn't an administrator." }
+            : { kind: 'error', message: err.message },
+      );
     }
   }, []);
 

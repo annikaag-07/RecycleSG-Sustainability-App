@@ -9,7 +9,7 @@ import os
 import time
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 try:
     from dotenv import load_dotenv
@@ -47,7 +47,7 @@ Give confidence from 0 to 1 (how sure you are of the category) and a short reaso
 class GeminiResult(BaseModel):
     material: Literal["plastic", "paper", "metal", "e-waste", "batteries", "clothing", "cardboard",
                       "glass", "lighting waste", "unclear"]
-    confidence: float
+    confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
     reason: str
 
 
@@ -65,7 +65,7 @@ def _get_client():
         if not key:
             raise MissingKeyError("GEMINI_API_KEY is not set. See README.md.")
         from google import genai
-        _client = genai.Client(api_key=key, http_options={"timeout": 15000})
+        _client = genai.Client(api_key=key, http_options={"timeout": 15000, "retry_options": {"attempts": 1}})
     return _client
 
 
@@ -97,29 +97,21 @@ def _mock(filename: Optional[str]) -> GeminiResult:
 
 def classify_image(image_bytes: bytes, mime_type: str = "image/jpeg", filename: Optional[str] = None) -> dict:
     start = time.perf_counter()
-    last_error = ""
     result = None
-    for attempt in range(3):
-        try:
-            if os.getenv("CV_MOCK") == "1":
-                result = _mock(filename)
-            else:
-                result = _call_gemini(image_bytes, mime_type)
-            break
-        except MissingKeyError:
-            raise
-        except Exception as e:  # network, quota, bad response
-            last_error = str(e)
-            if "429" in last_error or "RESOURCE_EXHAUSTED" in last_error:
-                time.sleep(2 ** attempt * 2)
-                continue
-            break
+    try:
+        if os.getenv("CV_MOCK") == "1":
+            result = _mock(filename)
+        else:
+            result = _call_gemini(image_bytes, mime_type)
+    except MissingKeyError:
+        raise
+    except Exception:  # network, quota, bad response: let the caller retry Pending
+        pass
     latency = int((time.perf_counter() - start) * 1000)
     base = {"model": "mock" if os.getenv("CV_MOCK") == "1" else DEFAULT_MODEL, "latency_ms": latency}
     if result is None:
         return {**base, "status": "unavailable", "material": None, "suggestion": None,
-                "confidence": 0.0, "reason": "Recognition unavailable, choose manually.",
-                "error": last_error[:200]}
+                "confidence": 0.0, "reason": "Recognition unavailable, choose manually."}
     conf = max(0.0, min(1.0, float(result.confidence)))
     if result.material in MATERIALS and conf >= threshold():
         status, material = "ok", result.material

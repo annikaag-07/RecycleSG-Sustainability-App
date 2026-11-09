@@ -14,6 +14,19 @@ def fake(material, conf):
 
 
 class ClassifierTests(unittest.TestCase):
+    def test_invalid_confidence_never_verifies(self):
+        for confidence in [float('nan'), float('inf'), -1, 7]:
+            with self.subTest(confidence=confidence), mock.patch.object(c, '_call_gemini', fake('plastic', confidence)):
+                self.assertEqual(c.classify_image(b'x')['status'], 'unavailable')
+
+    def test_rate_limit_returns_without_sleep_or_repeated_calls(self):
+        with mock.patch.object(c, '_call_gemini', side_effect=RuntimeError('429 secret diagnostic')) as call, mock.patch.object(c.time, 'sleep') as sleep:
+            result = c.classify_image(b'x')
+        self.assertEqual(result['status'], 'unavailable')
+        call.assert_called_once()
+        sleep.assert_not_called()
+        self.assertNotIn('secret diagnostic', str(result))
+
     def test_confident_result_is_ok(self):
         with mock.patch.object(c, "_call_gemini", fake("glass", 0.9)):
             r = c.classify_image(b"x")
@@ -28,11 +41,6 @@ class ClassifierTests(unittest.TestCase):
         with mock.patch.object(c, "_call_gemini", fake("unclear", 0.95)):
             r = c.classify_image(b"x")
         self.assertEqual((r["status"], r["suggestion"]), ("unsure", None))
-
-    def test_confidence_is_clamped(self):
-        with mock.patch.object(c, "_call_gemini", fake("batteries", 7)):
-            r = c.classify_image(b"x")
-        self.assertEqual(r["confidence"], 1.0)
 
     def test_api_failure_falls_back(self):
         def boom(b, m):

@@ -7,6 +7,12 @@ confirm or change it, and manual selection must always work (see SRS REQ 4.2 and
 Result fields: `status` is `ok` (confident, pre-select it), `unsure` (ask the user), or `unavailable`
 (API down or quota hit, ask the user). `material` is set only when `ok`; `suggestion` is the model's best guess.
 
+Backend integration contract, current test evidence and API-only demo seed/reset commands:
+[Backend integration handoff](../../docs/demo/BACKEND_INTEGRATION.md).
+Gemini confidence must be finite and within [0,1]. Calls use one attempt with a 15-second timeout;
+raw provider errors are not returned to clients. `/verify` adds the saved activity's illustrative
+`activity_impact` estimate; aggregate totals remain in the existing Supabase impact RPC.
+
 ## Setup (Mac / Linux)
 ```bash
 cd Lab3/CV

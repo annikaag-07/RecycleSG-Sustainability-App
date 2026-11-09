@@ -21,11 +21,13 @@ load_dotenv(Path(__file__).with_name('.env'))
 os.environ.pop('CV_MOCK', None)
 from app import app
 import verification
+from live_target import validate_target
 
-url = os.environ['SUPABASE_URL'].rstrip('/')
-assert url == 'https://zwyibrksagddbrqiqaqf.supabase.co', 'Only the approved disposable project is allowed'
+frontend = dotenv_values(Path(__file__).parent.parent / 'frontend/.env')
+url = validate_target(os.environ['SUPABASE_URL'], frontend['EXPO_PUBLIC_SUPABASE_URL'],
+                      os.getenv('LIVE_TEST_PROJECT_REF', ''))
 admin = os.environ['SUPABASE_SERVICE_ROLE_KEY']
-anon = dotenv_values(Path(__file__).parent.parent / 'frontend/.env')['EXPO_PUBLIC_SUPABASE_ANON_KEY']
+anon = frontend['EXPO_PUBLIC_SUPABASE_ANON_KEY']
 uid = token = photo = None
 http = httpx.Client(timeout=25)
 

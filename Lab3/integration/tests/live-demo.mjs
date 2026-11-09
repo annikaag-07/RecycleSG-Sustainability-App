@@ -5,11 +5,17 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
 
 process.loadEnvFile(fileURLToPath(new URL('../../CV/.env', import.meta.url)));
 const url=process.env.SUPABASE_URL;
 const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
-assert.equal(url,'https://zwyibrksagddbrqiqaqf.supabase.co');
+const project=process.env.LIVE_TEST_PROJECT_REF;
+assert.match(project || '', /^[a-z0-9-]+$/, 'Set LIVE_TEST_PROJECT_REF explicitly before hosted writes');
+assert.equal(url?.replace(/\/$/,''),`https://${project}.supabase.co`);
+const frontend=parseEnv(readFileSync(new URL('../../frontend/.env',import.meta.url),'utf8'));
+assert.equal(frontend.EXPO_PUBLIC_SUPABASE_URL?.replace(/\/$/,''),`https://${project}.supabase.co`);
 const root=fileURLToPath(new URL('artifacts/live/',import.meta.url));
 await mkdir(root,{recursive:true});
 async function api(path,body,method=body?'POST':'GET') {

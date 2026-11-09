@@ -126,8 +126,8 @@ Configure server-only Supabase/Gemini credentials and explicit `FRONTEND_ORIGINS
 | Route | Request / access | Result |
 |---|---|---|
 | `GET /health` | Public | Service health response |
-| `POST /classify` | Public multipart `file`; JPEG/PNG/WebP, non-empty, up to 8 MB (app/storage limit is 5 MB) | `status: ok/unsure/unavailable`, `material`, `suggestion`, `confidence`, `reason`, `model`, `latency_ms`; provider failure may include diagnostic `error` |
-| `POST /verify` | User bearer token; JSON `{ "activity_id": 42 }` with positive ID | `{ "activity_id": 42, "status": "Verified", "material": "plastic", "confidence": 0.9, "message": "..." }`; status can also be Pending or Rejected |
+| `POST /classify` | Public multipart `file`; JPEG/PNG/WebP, non-empty, up to 8 MB (app/storage limit is 5 MB) | `status: ok/unsure/unavailable`, `material`, `suggestion`, `confidence`, `reason`, `model`, `latency_ms`; raw provider errors are not exposed |
+| `POST /verify` | User bearer token; JSON `{ "activity_id": 42 }` with positive ID | `{ "activity_id": 42, "status": "Verified", "material": "plastic", "confidence": 0.9, "message": "...", "activity_impact": {"estimated_co2_saved_kg": 0.1, "is_estimate": true, "basis": "illustrative_per_item_v1"} }`; status can also be Pending or Rejected |
 
 Classification preselects only a confident material accepted by the point and not already logged. Manual choices are preserved, retakes cancel stale requests, and uncertainty/outage leaves manual selection available. The 20-second suggestion timeout never creates an activity or awards points. Client recognition is not trusted for rewards.
 
@@ -135,7 +135,9 @@ Verification authenticates the token, loads the caller's owned activity, validat
 
 The service calls `finalize_recycling_activity(p_activity_id bigint, p_user_id uuid, p_status text, p_predicted_material text, p_confidence double precision)`, returning the activity row as a set. Only `service_role` can execute it. The function locks the owned row, validates confidence/status/material, writes the terminal status and timestamp, and returns existing terminal results unchanged. Existing database triggers award points, quests and badges; clients cannot set verification or balances directly.
 
-The UI waits up to 25 seconds for verification, then reconciles by refresh/retry. Supabase and Gemini HTTP requests have 15-second per-request timeouts; Gemini quota retries can outlast the UI wait. There is no background queue or global server-job cancellation. Never manually toggle terminal states to reset rewards.
+The UI waits up to 25 seconds for verification, then reconciles by refresh/retry. Supabase and Gemini HTTP requests have 15-second per-request timeouts. Gemini makes one attempt (including SDK retries); rate limits return unavailable. Multiple sequential Supabase calls can still exceed the UI wait. There is no background queue or global server-job cancellation. Never manually toggle terminal states to reset rewards.
+
+`activity_impact` is the persisted activity's estimate, not the user's aggregate. Verified quantity × 0.1 kg; Pending/Rejected = zero. Never add repeated response values to a total; fetch `get_user_environmental_impact` instead. Gemini supplies material recognition, not item weight or carbon factors. See [backend handoff](docs/demo/BACKEND_INTEGRATION.md).
 
 This is a material-match prototype: it does not validate quantity or physical disposal. Manual selection does not bypass verification. Rejected activities remain subject to one-material-per-check-in and cooldown rules.
 

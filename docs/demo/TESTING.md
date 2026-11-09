@@ -70,10 +70,10 @@ node --env-file=../../frontend/.env --test live-public.test.mjs
 
 This reads public data/settings and tests denied access; HTTP 206 is a valid partial PostgREST result. It creates no accounts, uploads or rewards. Use a Node version supporting `--env-file` and `process.loadEnvFile` for the live scripts.
 
-The following commands **write test data and call Gemini**. Scripts restrict themselves to the documented demo project. From `Lab3/CV`:
+The following commands **write test data and call Gemini**. Scripts require an explicit project reference matching both frontend/CV environments. Current backend-only acceptance evidence and seed/reset commands are in [BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md); older runs below remain historical evidence. From `Lab3/CV`:
 
 ```sh
-uv run --no-project --with-requirements requirements-test.txt python live_smoke.py
+LIVE_TEST_PROJECT_REF=ihrgxedwftfzzohqpnnu uv run --no-project --with-requirements requirements-test.txt python live_smoke.py
 ```
 
 The 2026-10-26 run created a temporary confirmed user, exercised login/profile creation, simulated-GPS check-in, private upload/download and the real `/verify` route through FastAPI TestClient. A synthetic blank PNG returned `unsure` in 2,112 ms: Pending, zero points. The script removed its own photo, signed out and deleted its temporary account/cascading rows. This does not test successful bottle recognition.
@@ -81,7 +81,7 @@ The 2026-10-26 run created a temporary confirmed user, exercised login/profile c
 For the real Chrome journey, start Expo on 8081 and FastAPI on 8000, then from `Lab3/integration/tests`:
 
 ```sh
-node live-demo.mjs
+LIVE_TEST_PROJECT_REF=ihrgxedwftfzzohqpnnu node live-demo.mjs
 ```
 
 The 2026-10-26 run took 20.858 seconds: login → search → simulated-GPS check-in → real stored bottle photo → Gemini → Verified → 10 points → quest → badge → impact → contribution → feed/ranks. Final lifetime/available/XP: **20/10/20**. It checked the feed display name while keeping the username anonymous. This is automation time, not a human rehearsal. Accounts/contributions and local results are retained; credentials have owner-only permissions under ignored `artifacts/live/`.

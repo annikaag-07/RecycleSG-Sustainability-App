@@ -16,11 +16,14 @@ type AuthState = {
   isVerified: boolean;
   continueAsGuest: () => void;
   /**
-   * From `app_metadata.role`, which only the service role can set. This only hides admin UI —
-   * the admin RPCs must check the role server-side (NFR-SEC-09).
+   * From the backend's `is_app_admin()` (membership of `public.app_admins`). This only decides which UI
+   * to show — every admin RPC checks it again on the server (NFR-SEC-09).
    */
   isAdmin: boolean;
+  /** The backend has no separate moderator role yet, so moderation follows the admin check. */
   isModerator: boolean;
+  /** False while the admin check for the current user is still running (avoids flashing "Administrators only"). */
+  roleChecked: boolean;
   /** User opened a password-reset link and must choose a new password before continuing (UC 1.2.AC.2). */
   passwordRecovery: boolean;
   finishPasswordRecovery: () => void;
@@ -58,12 +61,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (userId) flushReportOutbox().catch(() => undefined);
   }, [userId]);
 
+  // Admin status per signed-in user. Any failure counts as "not an admin".
+  const [adminCheck, setAdminCheck] = useState<{ userId: string; isAdmin: boolean } | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    supabase
+      .rpc('is_app_admin')
+      .then(({ data, error }) => {
+        if (!cancelled) setAdminCheck({ userId, isAdmin: !error && data === true });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
   const value = useMemo<AuthState>(() => {
     const user = session?.user ?? null;
-    const role = user?.app_metadata?.role;
+    const checked = !user || adminCheck?.userId === user.id;
+    const isAdmin = !!user && adminCheck?.userId === user.id && adminCheck.isAdmin;
     return {
-      isAdmin: role === 'admin',
-      isModerator: role === 'admin' || role === 'moderator',
+      isAdmin,
+      isModerator: isAdmin,
+      roleChecked: checked,
       loading,
       session,
       user,
@@ -73,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       passwordRecovery,
       finishPasswordRecovery: () => setPasswordRecovery(false),
     };
-  }, [loading, session, guest, passwordRecovery]);
+  }, [loading, session, guest, passwordRecovery, adminCheck]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

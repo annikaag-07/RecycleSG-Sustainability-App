@@ -113,4 +113,4 @@ Disposable reset-test run `a11b876324e04af19c96ca507285714c` passed setup twice,
 
 Final Friday run `dc1c946e178b445da088b59c084918a4` passed all five logins, fresh presenters, background rewards/badges/impact, unclaimed quests, public feed, private activity isolation, both ranking periods and the 90/100 challenge. The private manifest records created IDs and validation time. The Python regression suite passes **34 tests**, including project/identity guards, file permissions and lost-response recovery during account creation.
 
-The remaining repository delivery step is to review, commit and push the tooling, tests and documentation on `nick/recyclesg-integration`, then update the integration PR. Credentials and private manifests stay in ignored `results/` files. Suggested PR title is **Integrate Gemini verification and prepare the community demo**.
+The tooling, tests and documentation are collected on `nick/demo-data` for draft PR review against main. Credentials and private manifests stay in ignored `results/` files. Suggested PR title is **Integrate Gemini verification and prepare the community demo**.

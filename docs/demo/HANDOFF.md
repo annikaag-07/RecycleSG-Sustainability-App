@@ -6,7 +6,7 @@ Presentation is Friday, 13 November 2026. Nick owns preparation, validation and 
 
 ## Start here
 
-Repository is `2006-SCS1-X2`, branch `nick/recyclesg-integration`. The team Supabase project is `ihrgxedwftfzzohqpnnu`. Confirm the checked-out branch and configured project before applying fixtures.
+Repository is `2006-SCS1-X2`, branch `nick/demo-data`. The team Supabase project is `ihrgxedwftfzzohqpnnu`. Confirm the checked-out branch and configured project before applying fixtures.
 
 Read the walkthrough, dataset specification and backend contract in that order. The walkthrough is the presentation acceptance checklist. The dataset document defines setup and reset expectations. The backend document records API behaviour and dated verification evidence.
 
@@ -35,7 +35,7 @@ Weekly ranks show A's 10 recycling points. All-time ranks include the quest rewa
 | Backend/Gemini integration | Implemented with automated and hosted test evidence | Run a fresh complete journey using the final presentation commit |
 | Community fixtures | Deployed and validated, challenge ID 6 at 90/100 Active | Reset instructions and evidence in DEMO_DATA.md |
 | Presentation accounts | Five confirmed logins verified, A/B fresh | Private credentials in Lab3/CV/results/presentation-friday.json |
-| Git delivery | Prior integration work pushed through 20e30fb; latest demo-plan edits are local | Check current remote/PR state before committing and pushing the handoff work |
+| Git delivery | Demo changes collected on nick/demo-data with current main merged | Review the draft PR before approval |
 
 ## Review the data and feature alignment
 

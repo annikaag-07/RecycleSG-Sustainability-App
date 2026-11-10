@@ -4,6 +4,7 @@ The core journey passed against real Supabase and Gemini on 2026-10-26. Photo
 suggestions were added and regression-tested afterward. That automated run used
 explicitly simulated GPS. Human classroom rehearsal remains pending; this is a classroom prototype.
 See [testing/evidence](TESTING.md) and [hosted setup](LIVE_SETUP.md).
+The proposed presenter accounts, background community history and milestone starting state are described in [demo data](DEMO_DATA.md).
 
 ## Start the application
 

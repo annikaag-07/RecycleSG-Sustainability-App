@@ -2,6 +2,18 @@
 
 Status on 2026-11-10 — proposed presentation dataset. The live acceptance runner creates test fixtures with different starting balances. Prepare this dataset before the timed rehearsal.
 
+## N4 demo bin is deployed
+
+The team project contains **Demo recycling bin — NTU N4**, point ID **12301**, at **50 Nanyang Avenue, Block N4, Singapore 639798**. It accepts Plastic, Paper, Glass and Metal. The source field identifies it as a classroom demo fixture.
+
+Coordinates are **1.346176586042716, 103.6821610515534**, resolved from OneMap's N4 School of Computer Engineering entry on 2026-11-10. Postal code 639798 covers several campus buildings, so search **Nanyang N4** and select the N4 entry. [OneMap lookup](https://www.onemap.gov.sg/api/common/elastic/search?searchVal=NANYANG%20N4&returnGeom=Y&getAddrDetails=Y&pageNum=1)
+
+Repeatable setup SQL is `Lab3/backend/supabase/demo/ntu_n4.sql`. Run it through SQL/MCP against the team project. The script reuses the fixture's source identifier and material links on subsequent runs. The live nearby API and a real authenticated check-in passed with simulated coordinates at the pin. A distant Tampines check-in was rejected. The temporary account and check-in were removed, and the bin remains available.
+
+Check-in requires a reported location within 100 m and the UI requires accuracy of at most 100 m. The pin represents the building. Verify the presentation laptop's location inside the lab during rehearsal, and explicitly disclose simulated GPS if indoor location is unreliable.
+
+Use **Change search location → Search by address instead** to browse bins around another area. Selecting directions opens Google Maps from the current location to the selected bin, including when the bin was found through an address search.
+
 The demo should show a first-time recycler finding a bin, identifying an item, earning a reward and contributing to a community goal. A second presenter refreshes the feed to show the new activity.
 
 ## Accounts and starting state
@@ -21,7 +33,7 @@ Create one dedicated milestone named **Classroom recycling challenge**, with tar
 ## Expected live demonstration
 
 1. Presenter A searches for a Plastic-compatible bin. Show a second search location such as Tampines, then return to the chosen demo bin.
-2. Check in using the agreed real location or explicitly disclosed simulated GPS. The existing tested location is 1 Beach Road. Select the venue before the rehearsal.
+2. Select **Demo recycling bin — NTU N4** and check in at the lab using real GPS or explicitly disclosed simulated coordinates at the N4 pin.
 3. Upload `docs/demo/assets/plastic-bottle.png` and demonstrate real Gemini recognition. Submit quantity 1 and verify.
 4. Show 10 points, 10 XP, the first badge and 0.10 kg illustrative carbon savings. Claim the first quest to reach 20 points/XP.
 5. Contribute 10 points to the classroom challenge. The milestone reaches 100/100 and AwaitingVerification. Presenter A retains 10 available points and 20 lifetime points/XP.

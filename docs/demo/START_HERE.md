@@ -26,9 +26,10 @@ Open http://127.0.0.1:8081 and sign in with your prepared account. Keep both
 terminals running. Internet access is required for hosted Supabase and Gemini.
 No account creation, sign-in or GPS simulation happens automatically.
 
-Use your actual location near a Plastic-compatible point, or explicitly configure
-and disclose a simulated location for a classroom rehearsal. The recorded run
-used **1 Beach Road**, accuracy 5 m. The sample photo is
+Use **Demo recycling bin — NTU N4** at **50 Nanyang Avenue, Block N4, Singapore 639798**.
+The building pin is **1.346176586042716, 103.6821610515534** and accepts Plastic.
+Verify GPS within 100 m of this pin before the presentation. If indoor location is unreliable,
+explicitly configure and disclose a simulated location for the classroom rehearsal. The sample photo is
 `docs/demo/assets/plastic-bottle.png`.
 
 ## What to click and say

@@ -63,7 +63,7 @@ For the successful 2026-11-10 focused run, two temporary Auth accounts were crea
 
 ## Demo dataset and current Gemini check
 
-The agreed presentation goals and proposed seed dataset are in [DEMO_DATA.md](DEMO_DATA.md). Prepare fresh presenters, three background recyclers and a challenge at 90/100 points for the timed demo.
+The presentation dataset is deployed and validated on 2026-11-10. It contains fresh presenters, three background recyclers and challenge ID 6 at 90/100 Active. Setup, reset commands and evidence are in [DEMO_DATA.md](DEMO_DATA.md).
 
 The full live journey was attempted twice on 2026-11-10. The first run failed the suggestion assertion. A standalone retry recognized Plastic at confidence 1.0. The second run passed suggestion and concurrent verification, then failed the expected Rejected status for the mismatched material. Those failures did not capture enough response detail to identify the cause. Assertions now include the safe result fields for future diagnosis. Both failed runs cleaned up their records. The earlier successful full journey remains dated 2026-11-09. A fresh complete Gemini rehearsal is still required before presenting.
 

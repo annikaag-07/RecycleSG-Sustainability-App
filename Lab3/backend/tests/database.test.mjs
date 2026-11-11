@@ -1,7 +1,7 @@
 // Actual migrations, ephemeral PostgreSQL-compatible database, minimal Supabase
 // auth/storage stand-ins. Does NOT test GoTrue, Storage HTTP, PostgREST or concurrency.
 import { PGlite } from '@electric-sql/pglite';
-import { readFile, readdir } from 'node:fs/promises';
+import { applyTestDatabase } from './fixture.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -15,24 +15,10 @@ test('backend migrations and authenticated RPC contracts', async (t) => {
   const rejects = (sql, message) => assert.rejects(db.query(sql), message);
   const asUser = async (uid) => db.exec(`RESET ROLE; SELECT set_config('request.jwt.claim.sub','${uid}',false); SET ROLE authenticated;`);
   try {
-    await db.exec(`
-      CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
-      CREATE SCHEMA auth; CREATE SCHEMA storage;
-      CREATE TABLE auth.users(id uuid primary key, raw_user_meta_data jsonb default '{}', email_confirmed_at timestamptz);
-      CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
-      CREATE TABLE storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
-      CREATE TABLE storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);
-      ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-      CREATE FUNCTION storage.foldername(text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$ SELECT (string_to_array($1,'/'))[1:array_length(string_to_array($1,'/'),1)-1] $$;
-      GRANT USAGE ON SCHEMA public,auth,storage TO anon,authenticated,service_role;
-      GRANT SELECT,INSERT ON storage.objects TO authenticated;
-    `);
     await t.test('all migrations apply in chronological order', async () => {
-      const root = new URL('../supabase/migrations/', import.meta.url);
-      const files = (await readdir(root)).filter(f => f.endsWith('.sql')).sort();
-      assert.ok(files.length >= 30);
-      for (const file of files) await db.exec(await readFile(new URL(file, root), 'utf8'));
-      t.diagnostic(`${files.length} actual migrations applied`);
+      const count = await applyTestDatabase(db);
+      assert.ok(count >= 30);
+      t.diagnostic(`${count} actual migrations applied`);
     });
     await t.test('private grants and trusted server reads are explicit', async () => {
       for (const table of ['user_badges', 'user_quest_progress']) {
@@ -52,6 +38,25 @@ test('backend migrations and authenticated RPC contracts', async (t) => {
     const plastic = (await one("SELECT id FROM material_types WHERE name='Plastic'")).id;
     const quest = (await one("SELECT id FROM quests WHERE quest_type='one_time' ORDER BY id LIMIT 1")).id;
     await asUser(a);
+    await t.test('point reports support owner-scoped retry and single admin review', async () => {
+      const submit = `SELECT submit_point_report(1,'full',null,'${request}') AS id`;
+      const { id } = await one(submit);
+      assert.deepEqual(await one(submit), { id });
+      await rejects(`SELECT submit_point_report(1,'wrong_info',null,'${request}')`, /different report/);
+      await rejects('SELECT * FROM admin_list_point_reports()', /Administrator required/);
+      await rejects(`SELECT admin_review_point_report(${id},'Resolved',null)`, /Administrator required/);
+      await rejects('SELECT * FROM point_reports', /permission denied/);
+      await asUser(b);
+      assert.notEqual((await one(submit)).id, id);
+      await db.exec(`RESET ROLE; INSERT INTO app_admins(user_id) VALUES('${b}')`);
+      await asUser(b);
+      assert.equal((await rows('SELECT * FROM admin_list_point_reports()')).length, 2);
+      assert.equal((await one(`SELECT admin_review_point_report(${id},'Resolved','Emptied') AS status`)).status, 'Resolved');
+      await rejects(`SELECT admin_review_point_report(${id},'Dismissed',null)`, /No pending report/);
+      assert.equal((await rows('SELECT * FROM admin_list_point_reports()')).length, 1);
+      await db.exec(`RESET ROLE; DELETE FROM app_admins WHERE user_id='${b}'`);
+      await asUser(a);
+    });
     let checkin, action;
     await t.test('public search and owned check-in', async () => {
       assert.equal((await rows("SELECT * FROM search_recycling_points_by_material('Plastic')")).length, 1);

@@ -50,6 +50,8 @@ export type Profile = {
   xp: number;
   level: number;
   created_at: string;
+  /** Who sees your posts and drops (social_community migration). Missing on a backend without it. */
+  visibility?: 'public' | 'followers';
 };
 
 export type EditableProfileFields = Partial<Pick<Profile, 'username' | 'display_name' | 'avatar_url' | 'bio'>>;

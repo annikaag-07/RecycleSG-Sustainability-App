@@ -54,8 +54,19 @@ function NotificationSection({ uid }: { uid: string }) {
   const [saved, setSaved] = useState<string>();
   const [error, setError] = useState<string>();
 
+  // The server decides which notifications are created, so the account's choices win over this device's copy.
   useEffect(() => {
-    loadNotificationPrefs(uid).then(setPrefs);
+    let live = true;
+    api.notifications
+      .getNotificationPreferences()
+      .then((p) => live && setPrefs({ social: p.social, progress: p.progress, streakReminder: p.streak_reminder }))
+      .catch(() => {
+        loadNotificationPrefs(uid).then((p) => live && setPrefs(p));
+        if (live) setError("Couldn't load your choices from the server, so these are this device's. Changes still try to save.");
+      });
+    return () => {
+      live = false;
+    };
   }, [uid]);
 
   const toggle = async (key: keyof NotificationPrefs, value: boolean) => {
@@ -64,7 +75,8 @@ function NotificationSection({ uid }: { uid: string }) {
     setPrefs(next); // UC 6.1 step 5: applies in place, no separate save step
     setError(undefined);
     try {
-      await saveNotificationPrefs(uid, next);
+      await api.notifications.setNotificationPreferences({ social: next.social, progress: next.progress, streak_reminder: next.streakReminder });
+      await saveNotificationPrefs(uid, next).catch(() => undefined);
       setSaved('Saved');
     } catch {
       setPrefs(previous); // UC 6.1.EX.1: never claim a preference that wasn't stored
@@ -84,8 +96,8 @@ function NotificationSection({ uid }: { uid: string }) {
       />
       {error && <Banner tone="error">{error}</Banner>}
       <AppText variant="small" color="textFaint" accessibilityLiveRegion="polite">
-        {saved ? `${saved} on this device. ` : 'Saved on this device. '}
-        The server doesn't send notifications yet, so these take effect once it does.
+        {saved ? `${saved} to your account. ` : 'Saved to your account. '}
+        Notifications appear in the inbox on the Feed tab while the app is open. Changes apply to new ones.
       </AppText>
     </Card>
   );
@@ -98,10 +110,31 @@ function PrivacySection({ uid }: { uid: string }) {
   const [results, setResults] = useState<AddressResult[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  // Null until the profile has loaded.
+  const [visibility, setVisibility] = useState<'public' | 'followers' | null>(null);
+  const [visibilityError, setVisibilityError] = useState<string>();
 
   useEffect(() => {
     loadHomeLocation(uid).then(setHome);
+    api.profile
+      .getMyProfile(uid)
+      .then((p) => setVisibility(p.visibility ?? 'public'))
+      .catch(() => setVisibilityError("Couldn't load your current setting."));
   }, [uid]);
+
+  // UC 6.1 step 5: applies straight away; put back if the server says no.
+  const chooseVisibility = async (next: 'public' | 'followers') => {
+    if (!visibility || next === visibility) return;
+    const previous = visibility;
+    setVisibility(next);
+    setVisibilityError(undefined);
+    try {
+      await api.social.setProfileVisibility(next);
+    } catch (e) {
+      setVisibility(previous);
+      setVisibilityError(`Couldn't change it. ${toApiError(e).message}`);
+    }
+  };
 
   const search = async () => {
     if (!q.trim()) return;
@@ -140,16 +173,31 @@ function PrivacySection({ uid }: { uid: string }) {
         </View>
       </View>
       <View style={styles.segment} accessibilityRole="radiogroup">
-        {['Public', 'Followers only'].map((v, i) => (
-          <View key={v} style={[styles.segmentItem, i === 0 && styles.segmentOn]} accessibilityRole="radio" accessibilityState={{ checked: i === 0, disabled: true }}>
-            <AppText variant="small" color={i === 0 ? 'text' : 'textFaint'}>
-              {v}
+        {(
+          [
+            ['public', 'Public'],
+            ['followers', 'Followers only'],
+          ] as const
+        ).map(([v, label]) => (
+          <Pressable
+            key={v}
+            onPress={() => chooseVisibility(v)}
+            disabled={!visibility}
+            style={[styles.segmentItem, visibility === v && styles.segmentOn]}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: visibility === v, disabled: !visibility }}
+          >
+            <AppText variant="small" color={visibility === v ? 'text' : 'textMuted'}>
+              {label}
             </AppText>
-          </View>
+          </Pressable>
         ))}
       </View>
+      {visibilityError && <Banner tone="error">{visibilityError}</Banner>}
       <AppText variant="small" color="textFaint">
-        Changing visibility needs posts on the server, which aren't available yet — so this can't be switched for now.
+        {visibility === 'followers'
+          ? 'Only people you approve see your posts and verified drops, older ones included. You’re left off the public feed and global leaderboards, and new followers send a request.'
+          : 'Anyone can see your posts and verified drops, and follow you without asking.'}
       </AppText>
 
       <View style={styles.divider} />

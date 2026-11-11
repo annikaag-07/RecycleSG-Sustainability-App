@@ -16,7 +16,7 @@ The branch contains the backend implementation. See [implementation and verifica
 
 ### Connect the Expo app
 
-Copy [the frontend environment example](Lab3/frontend/.env.example) to `Lab3/frontend/.env` and restart Expo after changing it. The team supplied integration project ref `ihrgxedwftfzzohqpnnu`. Its deployment state is unverified. The October deployment record describes a different project.
+Copy [the frontend environment example](Lab3/frontend/.env.example) to `Lab3/frontend/.env` and restart Expo after changing it. The team supplied integration project ref `ihrgxedwftfzzohqpnnu`. All eight PR migrations are applied and the account-deletion function is active. Guest Discover and nearby search returned HTTP 200 on 11 November 2026. The October deployment record describes a different project.
 
 | Expo variable | Value the frontend team needs |
 |---|---|
@@ -35,7 +35,7 @@ Use the [shared Supabase client](Lab3/frontend/src/shared/api/supabase.ts). Supa
 | UI-2, community | The existing verified-drop feed and global rankings have working clients. | Connect the photo composer, guest Discover, Following, post detail, comments, likes, profile privacy, blocks, search and following leaderboard. Pass `p_check_in_id` when sharing a verified drop. |
 | UI-2, progress and inbox | The existing app reads points, quests and earned badges. | Connect streaks, badge criteria, inbox and category settings. Use `estimate_recycling_reward` for previews, `get_my_level_progress` for XP thresholds and the reward ledger for actual payouts. |
 
-**Release status.** The SQL migrations, Edge Function source and API contracts are in the branch. Before a hosted demo, verify the target schema and seed, deploy any missing migrations and the Edge Function, configure Auth and reminders, and run the role-based rehearsal. Keep favourites and home location on device for the MVP. [Verification evidence](BACKEND_IMPLEMENTATION.md#local-verification-results) · [Demo checklist](docs/demo/LAB5_REHEARSAL.md)
+**Release status.** The SQL migrations, Edge Function source and API contracts are in the branch. Before the demo, verify hosted Auth settings and scheduled reminders, then run the signed-in role-based rehearsal. Keep favourites and home location on device for the MVP. [Verification evidence](BACKEND_IMPLEMENTATION.md#local-verification-results) · [Demo checklist](docs/demo/LAB5_REHEARSAL.md)
 
 ## How the backend works
 

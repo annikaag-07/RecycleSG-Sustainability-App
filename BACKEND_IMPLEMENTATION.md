@@ -1,6 +1,6 @@
 # RecycleSG backend implementation and frontend handoff
 
-All ten backend batches are implemented on `feature/lab5-backend`, based on GitHub main `b25a0b4`. The SQL endpoints run locally. The shared Supabase deployment is pending.
+All ten backend batches are implemented on `feature/lab5-backend`, based on GitHub main `b25a0b4`. The SQL endpoints run locally. The eight Lab 5 migrations and deletion function are deployed on the integration project.
 
 | Frontend owner | Handoff |
 |---|---|
@@ -27,7 +27,7 @@ Home location and favourites stay on device (2.2, 3.7). Optional future home syn
 
 ## Point report endpoints
 
-Implemented on this branch. All calls use POST /rest/v1/rpc/<name> with the signed-in user's access token. Hosted verification is pending.
+Implemented on this branch. All calls use POST /rest/v1/rpc/<name> with the signed-in user's access token. Hosted signed-in report submission and review still need a rehearsal.
 
 | RPC | JSON request example | Success |
 |---|---|---|
@@ -46,7 +46,24 @@ For submission, 42501 means verification required, 22023 means invalid input or 
 | Frontend | 15 tests and TypeScript passed. The matching Expo ESLint preset found five existing issues in the edited screens and zero new findings compared to main. |
 | Edge Function | Deno typechecking passed. The HTTP entry point passed preflight, missing-session and successful cleanup checks using the pinned SDK with simulated Auth and Storage services. |
 
-The hosted Auth password policy, real private media removal, hosted ban enforcement and scheduled reminder execution still need an integration deployment.
+The hosted Auth password policy, real private media removal, hosted ban enforcement and scheduled reminder execution still need a signed-in or scheduled check on the deployed project.
+
+## Hosted deployment on 11 November 2026
+
+Project `ihrgxedwftfzzohqpnnu` had the 33 baseline migrations before release. Supabase MCP generated the following hosted versions for PR #13. Use the names and this mapping when reconciling CLI migration history.
+
+| Migration | Repository version | Hosted version |
+|---|---|---|
+| point_report_workflow | 20261111133136 | 20261111144701 |
+| social_community | 20261111133937 | 20261111144717 |
+| finder_and_impact | 20261111133953 | 20261111144719 |
+| milestone_inbox | 20261111134017 | 20261111144721 |
+| progress_rules | 20261111134018 | 20261111144722 |
+| account_deletion | 20261111134026 | 20261111144724 |
+| social_demo_contracts | 20261111135608 | 20261111144726 |
+| reward_display_contracts | 20261111135611 | 20261111144728 |
+
+The `delete-my-account` function is active at version 1 with JWT verification enabled. A request without a user session returned HTTP 401. Guest Discover returned an empty page with HTTP 200. Nearby search returned a point with HTTP 200. A read-only inventory found 12,301 recycling points, four milestones and both private photo buckets. Signed-in posting, moderation and deletion still need the integration rehearsal.
 
 ## Reproduce verification
 

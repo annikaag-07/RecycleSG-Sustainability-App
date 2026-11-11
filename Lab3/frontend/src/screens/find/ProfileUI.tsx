@@ -20,6 +20,8 @@ type Data = {
   actions: RecyclingAction[];
   pointsVisited: number;
   badgesEarned: number;
+  /** Null if it couldn't be loaded; the rest of the profile still shows. */
+  streak: number | null;
 };
 
 /** You tab (UC 6.1 step 1, REQ-2.1, REQ-2.5). */
@@ -33,14 +35,15 @@ export default function ProfileUI() {
     if (!user) return;
     setError(undefined);
     try {
-      const [profile, impact, actions, checkIns, badges] = await Promise.all([
+      const [profile, impact, actions, checkIns, badges, streak] = await Promise.all([
         api.profile.getMyProfile(user.id),
         api.profile.getMyEnvironmentalImpact(user.id),
         api.checkins.listMyRecyclingActions(200),
         api.checkins.listMyCheckIns(1000),
         api.progress.listMyBadges(),
+        api.progress.getMyStreak().catch(() => null),
       ]);
-      setData({ profile, impact, actions, pointsVisited: new Set(checkIns.map((c) => c.recycling_point_id)).size, badgesEarned: badges.length });
+      setData({ profile, impact, actions, pointsVisited: new Set(checkIns.map((c) => c.recycling_point_id)).size, badgesEarned: badges.length, streak });
     } catch (e) {
       setError(toApiError(e).message);
     }
@@ -96,7 +99,7 @@ export default function ProfileUI() {
     );
   }
 
-  const { profile, impact, actions, pointsVisited } = data;
+  const { profile, impact, actions, pointsVisited, streak } = data;
   const name = profile.display_name || profile.username;
   const xpInto = profile.xp % XP_PER_LEVEL;
   const pending = actions.filter((a) => a.verification_status === 'Pending');
@@ -145,7 +148,7 @@ export default function ProfileUI() {
         <Stat label="Available" value={profile.available_eco_points} hint="to contribute" />
         <Stat label="Items recycled" value={impact.total_recycled_units} hint="verified" />
         <Stat label="Points visited" value={pointsVisited} />
-        <Stat label="Current streak" value="—" hint="not tracked yet" />
+        <Stat label="Current streak" value={streak ?? '—'} hint={streak == null ? "couldn't load" : streak === 1 ? 'day' : 'days'} />
         <Stat label="Badges" value={data.badgesEarned} hint="earned" />
       </View>
 

@@ -136,3 +136,43 @@ test('UI-2: default usernames never show as names', () => {
   assert.equal(personName({ display_name: null, username: 'user_' + '0123456789abcdef'.repeat(2) }), 'Anonymous Recycler');
   assert.equal(personName({ display_name: '', username: 'rachel.lim' }), 'rachel.lim');
 });
+
+test('UI-2: badge progress is worded by what each badge counts', () => {
+  const b = load('screens/earn/badges.ts');
+  const badge = (criterion, progress, target, extra = {}) => ({ id: 1, name: 'x', description: null, criterion, target, progress, earned_at: null, ...extra });
+  assert.equal(b.progressText(badge('verified_actions', 3, 5)), '3 of 5 verified drops');
+  assert.equal(b.progressText(badge('verified_actions', 9, 5)), '5 of 5 verified drops');
+  assert.equal(b.progressText(badge('streak', 3, 7)), 'Best run: 3 of 7 days in a row');
+  assert.equal(b.progressText(badge('regions', 1, 2)), '1 of 2 regions');
+  assert.equal(b.nextStep(badge('verified_actions', 4, 5)), '1 more verified drop to go.');
+  assert.equal(b.nextStep(badge('regions', 0, 2)), 'Recycle at a point in 2 more regions.');
+  assert.equal(b.nextStep(badge('streak', 3, 7)), 'Recycle on 7 days in a row. Your best so far is 3 days.');
+  assert.equal(b.nextStep(badge('streak', 0, 7)), 'Recycle on 7 days in a row.');
+  assert.equal(b.nextStep(badge('streak', 7, 7)), 'Unlocks with your next verified drop.');
+  assert.equal(b.defaultDescription(badge('regions', 0, 3)), 'Recycle in 3 regions of Singapore');
+});
+
+test('UI-2: the closest badge compares share of target across criteria and skips earned ones', () => {
+  const b = load('screens/earn/badges.ts');
+  const list = [
+    { id: 1, criterion: 'verified_actions', target: 1, progress: 1, earned_at: '2026-11-01T00:00:00Z' },
+    { id: 2, criterion: 'verified_actions', target: 10, progress: 4 },
+    { id: 3, criterion: 'streak', target: 7, progress: 1 },
+    { id: 4, criterion: 'regions', target: 2, progress: 1 },
+  ];
+  assert.equal(b.closestBadge(list).id, 4, '1 of 2 regions beats 4 of 10 drops');
+  assert.equal(b.closestBadge([list[0]]), undefined);
+  // Same share: fewer steps left wins.
+  assert.equal(b.closestBadge([{ id: 5, target: 4, progress: 2 }, { id: 6, target: 2, progress: 1 }]).id, 6);
+});
+
+test('UI-2: the following leaderboard maps the app period to the server key', async () => {
+  const calls = [];
+  const s = social(async (name, args) => { calls.push({ name, args }); return { data: [], error: null }; });
+  await s.getFollowingLeaderboard('week');
+  await s.getFollowingLeaderboard('all_time', 10);
+  assert.deepEqual(calls, [
+    { name: 'get_following_leaderboard', args: { p_period: 'weekly', p_limit: 50 } },
+    { name: 'get_following_leaderboard', args: { p_period: 'all_time', p_limit: 10 } },
+  ]);
+});

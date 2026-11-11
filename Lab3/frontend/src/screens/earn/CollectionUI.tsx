@@ -3,18 +3,22 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
-import { api, toApiError, type Badge, type UserBadge } from '@/shared/api';
+import { api, toApiError, type BadgeProgress } from '@/shared/api';
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, EmptyState, Header, Screen } from '@/shared/components';
 import { colors, spacing } from '@/shared/theme';
+import { closestBadge, defaultDescription, nextStep, progressText } from './badges';
 import { ProgressBar } from './ProgressBar';
 
-type Data = { badges: Badge[]; mine: UserBadge[]; verified: number; pending: number };
+type Data = { badges: BadgeProgress[]; streak: number; verified: number; pending: number };
 
 const drops = (n: number) => `${n} verified drop${n === 1 ? '' : 's'}`;
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** UC 4.1 steps 6–8: badges earned, badges in progress, and the one closest to unlocking. */
+/**
+ * UC 4.1 steps 6–8: badges earned, badges in progress, and the one closest to unlocking. Badges count verified drops,
+ * days in a row or regions visited; the server works out the progress for each.
+ */
 export default function CollectionUI() {
   const { user } = useAuth();
   const [data, setData] = useState<Data>();
@@ -24,13 +28,13 @@ export default function CollectionUI() {
     if (!user) return;
     setError(undefined);
     try {
-      const [badges, mine, verified, pending] = await Promise.all([
-        api.progress.listBadges(),
-        api.progress.listMyBadges(),
+      const [badges, streak, verified, pending] = await Promise.all([
+        api.progress.listMyBadgeProgress(),
+        api.progress.getMyStreak(),
         api.progress.countMyActions(user.id, 'Verified'),
         api.progress.countMyActions(user.id, 'Pending'),
       ]);
-      setData({ badges, mine, verified, pending });
+      setData({ badges, streak, verified, pending });
     } catch (e) {
       setError(toApiError(e).message);
     }
@@ -71,12 +75,10 @@ export default function CollectionUI() {
     );
   }
 
-  const { badges, mine, verified, pending } = data;
-  const earnedAt = new Map(mine.map((b) => [b.badge_id, b.earned_at]));
-  const earned = badges.filter((b) => earnedAt.has(b.id));
-  const locked = badges.filter((b) => !earnedAt.has(b.id));
-  // Badges are listed easiest first, so the first locked one is the closest (UC 4.1 step 8).
-  const closest = locked[0];
+  const { badges, streak, verified, pending } = data;
+  const earned = badges.filter((b) => b.earned_at).sort((a, b) => a.earned_at!.localeCompare(b.earned_at!));
+  const closest = closestBadge(badges);
+  const locked = badges.filter((b) => !b.earned_at && b !== closest);
 
   return (
     <Screen scroll>
@@ -86,7 +88,9 @@ export default function CollectionUI() {
         <AppText variant="title" accessibilityRole="header">
           {earned.length} of {badges.length} badges
         </AppText>
-        <AppText color="textMuted">{drops(verified)} so far</AppText>
+        <AppText color="textMuted">
+          {drops(verified)} so far · {streak === 0 ? 'no streak yet' : `${streak}-day streak`}
+        </AppText>
       </View>
 
       {error && (
@@ -103,12 +107,9 @@ export default function CollectionUI() {
       {closest && (
         <Card label="Closest">
           <BadgeHead badge={closest} earned={false} />
-          <ProgressBar value={verified} max={closest.required_verified_actions} label={`${closest.name} progress`} />
+          <ProgressBar value={closest.progress} max={closest.target} label={`${closest.name} progress`} />
           <AppText variant="small" color="textMuted">
-            {/* The server only awards badges when an activity is verified, so a badge already reached waits for the next one. */}
-            {verified >= closest.required_verified_actions
-              ? 'Unlocks with your next verified drop.'
-              : `${closest.required_verified_actions - verified} more verified drop${closest.required_verified_actions - verified === 1 ? '' : 's'} to go.`}
+            {progressText(closest)}. {nextStep(closest)}
           </AppText>
         </Card>
       )}
@@ -119,21 +120,21 @@ export default function CollectionUI() {
             <View key={b.id} style={styles.item}>
               <BadgeHead badge={b} earned />
               <AppText variant="small" color="textMuted">
-                Earned {formatDate(earnedAt.get(b.id)!)}
+                Earned {formatDate(b.earned_at!)}
               </AppText>
             </View>
           ))}
         </Card>
       )}
 
-      {locked.length > 1 && (
+      {locked.length > 0 && (
         <Card label="In progress">
-          {locked.slice(1).map((b) => (
+          {locked.map((b) => (
             <View key={b.id} style={styles.item}>
               <BadgeHead badge={b} earned={false} />
-              <ProgressBar value={verified} max={b.required_verified_actions} label={`${b.name} progress`} />
+              <ProgressBar value={b.progress} max={b.target} label={`${b.name} progress`} />
               <AppText variant="small" color="textMuted">
-                {Math.min(verified, b.required_verified_actions)} of {drops(b.required_verified_actions)}
+                {progressText(b)}
               </AppText>
             </View>
           ))}
@@ -143,13 +144,14 @@ export default function CollectionUI() {
       {badges.length === 0 && <EmptyState icon="award" title="No badges yet" message="Badges haven't been set up on the server." />}
 
       <AppText variant="small" color="textFaint">
-        Each verified log counts once, however many items it had.
+        Each verified log counts once, however many items it had. A day counts towards a streak when something you
+        recycled that day, Singapore time, is verified. Regions come from the points you recycle at.
       </AppText>
     </Screen>
   );
 }
 
-function BadgeHead({ badge: b, earned }: { badge: Badge; earned: boolean }) {
+function BadgeHead({ badge: b, earned }: { badge: BadgeProgress; earned: boolean }) {
   return (
     <View style={styles.head}>
       <Feather
@@ -161,7 +163,7 @@ function BadgeHead({ badge: b, earned }: { badge: Badge; earned: boolean }) {
       <View style={styles.fill}>
         <AppText variant="bodyStrong">{b.name}</AppText>
         <AppText variant="small" color="textMuted">
-          {b.description ?? `Complete ${drops(b.required_verified_actions)}`}
+          {b.description ?? defaultDescription(b)}
         </AppText>
       </View>
     </View>

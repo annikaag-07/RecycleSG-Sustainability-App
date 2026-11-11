@@ -1,7 +1,7 @@
 // Quests and badges. Progress only moves when the server marks a recycling activity Verified; the app just reads it.
 import { supabase } from './supabase';
 import { unwrap } from './errors';
-import type { Badge, QuestClaimResult, QuestProgress, Quest, UserBadge, VerificationStatus } from './types';
+import type { Badge, BadgeProgress, QuestClaimResult, QuestProgress, Quest, UserBadge, VerificationStatus } from './types';
 
 /** Active quests. Public. */
 export async function listQuests(): Promise<Quest[]> {
@@ -24,6 +24,19 @@ export async function claimQuestReward(questId: number, periodStart: string): Pr
 /** Every badge, easiest first. Public. */
 export async function listBadges(): Promise<Badge[]> {
   return unwrap(await supabase.from('badges').select('*').order('required_verified_actions'));
+}
+
+/** Every badge with the caller's progress and, once earned, when. Streak and region badges count from all past recycling. */
+export async function listMyBadgeProgress(): Promise<BadgeProgress[]> {
+  return unwrap(await supabase.rpc('list_my_badge_progress'));
+}
+
+/**
+ * Consecutive Singapore days with verified recycling. Yesterday's streak still counts until today ends, so it doesn't
+ * reset at midnight before you've had a chance to recycle.
+ */
+export async function getMyStreak(): Promise<number> {
+  return unwrap<number>(await supabase.rpc('get_my_streak')) ?? 0;
 }
 
 export async function listMyBadges(): Promise<UserBadge[]> {

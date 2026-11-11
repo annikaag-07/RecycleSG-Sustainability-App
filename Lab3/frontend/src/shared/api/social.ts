@@ -2,7 +2,17 @@
 // comments; every write needs a signed-in account with a confirmed email.
 import { supabase } from './supabase';
 import { ApiError, toApiError, unwrap } from './errors';
-import type { FeedKind, FollowState, Post, PostComment, PostVisibility, ReportTarget, SocialProfile } from './types';
+import type {
+  FeedKind,
+  FollowingLeaderboardEntry,
+  FollowState,
+  LeaderboardPeriod,
+  Post,
+  PostComment,
+  PostVisibility,
+  ReportTarget,
+  SocialProfile,
+} from './types';
 
 /** The server caps every page at 100. */
 export const MAX_PAGE = 100;
@@ -135,6 +145,17 @@ export async function getSocialProfile(userId: string): Promise<SocialProfile | 
 /** Following a followers-only account sends a request and returns 'pending'. False unfollows or withdraws it. */
 export async function setFollow(userId: string, follow: boolean): Promise<FollowState> {
   return call<FollowState>('set_follow', { p_user_id: userId, p_follow: follow });
+}
+
+/**
+ * You and the people you follow, by lifetime Eco Points or by Eco Points from recycling verified since Monday 00:00
+ * Singapore time (the same week as get_weekly_leaderboard). Equal totals share a rank; zeros are left out.
+ */
+export async function getFollowingLeaderboard(period: LeaderboardPeriod, limit = 50): Promise<FollowingLeaderboardEntry[]> {
+  return call<FollowingLeaderboardEntry[]>('get_following_leaderboard', {
+    p_period: period === 'week' ? 'weekly' : 'all_time',
+    p_limit: limit,
+  });
 }
 
 /** Display names for the recycling points posts are linked to. Points are public, so guests can read them. */

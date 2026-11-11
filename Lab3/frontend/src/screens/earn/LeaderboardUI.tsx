@@ -21,28 +21,33 @@ type Row = {
   isMe: boolean;
 };
 
+/** UC 4.2 step 2 and AC.2: everyone, or you and the people you follow. */
+type Scope = 'global' | 'following';
+
 type Load =
   | { kind: 'loading' }
+  /** The Following board needs an account. */
+  | { kind: 'signedOut' }
   | { kind: 'error'; message: string }
   /** `me` is the signed-in user's own row when they aren't in the list (UC 4.2.AC.3). */
   | { kind: 'ready'; rows: Row[]; me: Row | null };
 
-/**
- * UC 4.2: where you stand, this week or all time. There's no friends board (UC 4.2.AC.2): the server has no follows.
- */
+/** UC 4.2: where you stand among everyone or among the people you follow, this week or all time. */
 export default function LeaderboardUI() {
   const { user } = useAuth();
   // UC 4.2 step 2: This week first.
   const [period, setPeriod] = useState<LeaderboardPeriod>('week');
+  const [scope, setScope] = useState<Scope>('global');
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   // Set when the server has no weekly board yet, so the all-time board is shown instead.
   const [weekMissing, setWeekMissing] = useState(false);
 
   const fetchBoard = useCallback(async () => {
+    if (scope === 'following' && !user) return setLoad({ kind: 'signedOut' });
     setLoad({ kind: 'loading' });
     try {
       const [entries, profile] = await Promise.all([
-        api.community.getLeaderboard(LIMIT, period),
+        scope === 'following' ? api.social.getFollowingLeaderboard(period, LIMIT) : api.community.getLeaderboard(LIMIT, period),
         user ? api.profile.getMyProfile(user.id) : Promise.resolve(null),
       ]);
       if (period === 'week') setWeekMissing(false);
@@ -57,7 +62,7 @@ export default function LeaderboardUI() {
       // UC 4.2.EX.3: an error and a retry, never a stale board shown as current.
       setLoad({ kind: 'error', message: err.message });
     }
-  }, [period, user]);
+  }, [period, scope, user]);
 
   useFocusEffect(
     useCallback(() => {
@@ -68,6 +73,10 @@ export default function LeaderboardUI() {
   return (
     <Screen scroll>
       <Header title="Leaderboard" />
+      <View style={styles.chips} accessibilityRole="tablist" accessibilityLabel="Who">
+        <Chip label="Global" selected={scope === 'global'} onPress={() => setScope('global')} />
+        <Chip label="Following" selected={scope === 'following'} onPress={() => setScope('following')} />
+      </View>
       <View style={styles.chips} accessibilityRole="tablist" accessibilityLabel="Time period">
         <Chip label="This week" selected={period === 'week'} onPress={() => setPeriod('week')} />
         <Chip label="All time" selected={period === 'all_time'} onPress={() => setPeriod('all_time')} />
@@ -80,14 +89,14 @@ export default function LeaderboardUI() {
           The weekly board isn't on the server yet, so this is the all-time board.
         </AppText>
       )}
-      {!user && (
+      {!user && scope === 'global' && (
         // UC 4.2.EX.1: guests can look, but they're told they aren't on it (NFR-BR-01).
         <Banner tone="info" title="You're browsing as a guest">
           Only people with an account earn Eco Points and appear here.
         </Banner>
       )}
-      <Board load={load} period={period} onRetry={fetchBoard} />
-      {!user && <Button label="Create an account" onPress={() => router.push('/register')} />}
+      <Board load={load} period={period} scope={scope} onRetry={fetchBoard} />
+      {!user && scope === 'global' && <Button label="Create an account" onPress={() => router.push('/register')} />}
     </Screen>
   );
 }
@@ -128,8 +137,15 @@ function toRows(entries: LeaderboardEntry[], profile: Profile | null, period: Le
   };
 }
 
-function Board({ load, period, onRetry }: { load: Load; period: LeaderboardPeriod; onRetry: () => void }) {
+function Board({ load, period, scope, onRetry }: { load: Load; period: LeaderboardPeriod; scope: Scope; onRetry: () => void }) {
   if (load.kind === 'loading') return <ActivityIndicator color={colors.text} style={styles.spinner} />;
+  if (load.kind === 'signedOut') {
+    return (
+      <EmptyState icon="users" title="Following needs an account" message="Log in to follow people and see how you compare with them.">
+        <Button label="Log in" onPress={() => router.push('/login')} />
+      </EmptyState>
+    );
+  }
   if (load.kind === 'error') {
     return (
       <>
@@ -146,11 +162,19 @@ function Board({ load, period, onRetry }: { load: Load; period: LeaderboardPerio
   if (rows.length === 0) {
     return (
       <>
-        <EmptyState
-          icon="award"
-          title={period === 'week' ? 'No one has earned points this week' : "No one's on the board yet"}
-          message="Verified recycling earns Eco Points. Be the first."
-        />
+        {scope === 'following' ? (
+          <EmptyState
+            icon="users"
+            title={period === 'week' ? 'No one you follow has points this week' : 'No one you follow has points yet'}
+            message="Follow people from their posts in the feed to compare with them here."
+          />
+        ) : (
+          <EmptyState
+            icon="award"
+            title={period === 'week' ? 'No one has earned points this week' : "No one's on the board yet"}
+            message="Verified recycling earns Eco Points. Be the first."
+          />
+        )}
         {me && <RankRow row={me} note={unranked} />}
       </>
     );
@@ -172,6 +196,9 @@ function Board({ load, period, onRetry }: { load: Load; period: LeaderboardPerio
       )}
       <AppText variant="small" color="textFaint" style={styles.footnote}>
         {/* UC 4.2.AC.4 and EX.5: the tie rule and what counts, stated rather than implied. */}
+        {scope === 'following'
+          ? 'You and the people you follow. Followers-only accounts appear once they approve you. '
+          : 'Followers-only accounts appear only to their followers. '}
         {period === 'week'
           ? 'This week runs from Monday to Sunday, Singapore time, and counts Eco Points from recycling verified in that time. Quest rewards count towards all time only. Equal totals share a rank.'
           : "Eco Points come from verified recycling and completed quests. Contributing to a milestone doesn't lower them. Equal totals share a rank."}

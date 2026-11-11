@@ -221,6 +221,21 @@ export type UserBadge = {
   earned_at: string;
 };
 
+/** What a badge counts (progress_rules migration). `streak` is the longest run achieved, not the current one. */
+export type BadgeCriterion = 'verified_actions' | 'streak' | 'regions';
+
+/** Returned by list_my_badge_progress: every badge, with the caller's progress towards it. */
+export type BadgeProgress = {
+  id: number;
+  name: string;
+  description: string | null;
+  criterion: BadgeCriterion;
+  target: number;
+  progress: number;
+  /** Null while locked. */
+  earned_at: string | null;
+};
+
 // ---------------------------------------------------------------------------------------------
 // Posts, comments, likes and follows (social_community, social_demo_contracts migrations; Lab3/backend/SOCIAL_API.md)
 // ---------------------------------------------------------------------------------------------
@@ -280,3 +295,6 @@ export type SocialProfile = {
 };
 
 export type ReportTarget = 'post' | 'comment';
+
+/** Returned by get_following_leaderboard: you and the people you follow, with points above zero. */
+export type FollowingLeaderboardEntry = LeaderboardEntry & { user_id: string };

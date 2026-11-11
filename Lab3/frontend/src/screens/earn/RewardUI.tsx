@@ -179,8 +179,8 @@ export default function RewardUI() {
             You'll see them here and on the You tab when it's done.
           </AppText>
           <AppText variant="small" color="textFaint">
-            Once verified, the drop also appears in the community feed under your display name, or as Anonymous Recycler if you
-            haven't set one.
+            Once verified, you can share it as a post, and it appears under Verified drops in the feed with your display name, or
+            as Anonymous Recycler if you haven't set one.
           </AppText>
           {verificationMessage && <AppText color="warning">{verificationMessage}</AppText>}
           <Button label={verifying ? 'Checking photo…' : 'Retry verification'} loading={verifying} onPress={verify} />
@@ -222,9 +222,13 @@ export default function RewardUI() {
         />
       )}
       {status === 'Verified' && (
-        // UC 3.2.AC.5 asks for a post linked to this drop. The server has no posts, but it lists every verified drop in the
-        // community feed by itself, so this one is there already.
-        <Button label="See it in the community feed" icon="users" variant="secondary" onPress={() => router.push('/feed')} />
+        // UC 3.2.AC.5: a post linked to this drop. Only verified drops can be linked, so there's no button while pending.
+        <Button
+          label="Share as a post"
+          icon="share"
+          variant="secondary"
+          onPress={() => router.push({ pathname: '/feed/compose', params: { checkInId: String(action.check_in_id) } })}
+        />
       )}
       <Button label="Done" onPress={done} />
     </Screen>

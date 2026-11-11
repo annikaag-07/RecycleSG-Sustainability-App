@@ -11,6 +11,8 @@ Call each function through `supabase.rpc(name, args)`. The finder is available t
 
 Singapore time determines the weekday and minute. The end of an interval is exclusive. Optional `week` (1–5) restricts the interval to that occurrence of its weekday in the month. A time range crossing midnight extends into the next weekday. Existing nearby and material search RPCs keep their response shapes. Use the new RPC for the open-now chip and `is_open` for result cards. An optional local demo seed adds the ALBA Cash for Trash station at 456 Jurong West Street 41. ALBA lists the second Sunday of each month from 08:30 to 11:30. Its block-level map pin comes from NEA CSV row 3665 with the matching street and postal code 640456. The station is a separate row from the permanent blue bin. The seed runs twice without duplicating it. Use `p_at="2026-11-08T09:00:00+08:00"` to demonstrate the published hours. [Demo SQL](supabase/demo/cash_for_trash.sql) · [Operator schedule effective May 2026](https://www.alba-wh.sg/pdf/Cash-For-Trash-Schedule%20%28wef%201%20May%202026%29.pdf)
 
+The station has material links for clothing and textiles, glass bottles, clean metal, paper and clean plastics. They populate the detail and recycling-log material pickers after seeding. [Jurong-Clementi Town Council collection guidance](https://ourneighbourhood.jrtc.org.sg/2022/05/earn-cash-rewards-by-disposing-of-your-trash-responsibly/)
+
 ## Manage points
 
 | Function | Arguments | Result |

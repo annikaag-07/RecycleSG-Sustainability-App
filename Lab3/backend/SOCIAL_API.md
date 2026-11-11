@@ -1,6 +1,6 @@
 # Community and moderation API
 
-UI-2 uses these calls for social profiles, leaderboards, the post composer, feeds, comments and follows. UI-1 uses the settings and moderation calls. Call each RPC through `supabase.rpc(name, args)` with the user's access token. A successful void RPC returns null. Row-returning RPCs return arrays. All named parameters below use the exact PostgREST keys. A default value means that the key can be omitted.
+UI-2 uses these calls for social profiles, leaderboards, the post composer, feeds, comments and follows. UI-1 uses the settings and moderation calls. Call each RPC through `supabase.rpc(name, args)` with the user's access token. Guests can load public Discover posts, their comments and linked images using the app's publishable key. Posting, uploading, liking, commenting, following and reporting require a confirmed account. A successful void RPC returns null. Row-returning RPCs return arrays. All named parameters below use the exact PostgREST keys. A default value means that the key can be omitted.
 
 ## Profiles, follows and blocks
 
@@ -17,14 +17,14 @@ UI-2 uses these calls for social profiles, leaderboards, the post composer, feed
 
 ## Posts and images
 
-The private `post-photos` bucket accepts JPEG, PNG and WebP up to 5 MiB per file. Upload each photo to a unique path such as `<auth-user-uuid>/<random-uuid>.jpg`. Supply one to eight uploaded paths when creating a post. Read the bytes with an authenticated Storage download so each request checks current visibility. A public URL cannot serve this bucket.
+The private `post-photos` bucket accepts JPEG, PNG and WebP up to 5 MiB per file. Upload each photo to a unique path such as `<auth-user-uuid>/<random-uuid>.jpg`. Supply one to eight uploaded paths when creating a post. Read the bytes through the Storage download API with the current guest or signed-in client so each download checks current visibility. A public URL cannot serve this bucket.
 
 | RPC and arguments | Result |
 |---|---|
-| `create_post(p_request_id, p_photo_paths, p_caption='', p_tags=[], p_recycling_point_id=null, p_visibility='public')` | New numeric post ID. Reuse the UUID and payload on transport retries. Photos stay in supplied order. The caption accepts up to 2,000 characters. Hashtags accept letters, numbers and underscore, up to 50 characters each and 20 per post. |
-| `edit_post(p_post_id, p_caption, p_tags, p_recycling_point_id, p_visibility, p_photo_paths=null)` | Void. The owner supplies replacement fields. Omit the photo list to preserve it. Hashtags are stored lowercase without the leading hash. |
+| `create_post(p_request_id, p_photo_paths, p_caption='', p_tags=[], p_recycling_point_id=null, p_visibility='public', p_check_in_id=null)` | New numeric post ID. Reuse the UUID and payload on transport retries. Photos stay in supplied order. From a reward screen, supply the caller’s verified check-in ID. The server derives its point and snapshots the earned Eco Points. An unverified or unavailable check-in returns P0002. The caption accepts up to 2,000 characters. Hashtags accept letters, numbers and underscore, up to 50 characters each and 20 per post. |
+| `edit_post(p_post_id, p_caption, p_tags, p_recycling_point_id, p_visibility, p_photo_paths=null)` | Void. The owner supplies replacement fields. The linked check-in keeps its original point. Render the edited marker when edited_at is present. Omit the photo list to preserve it. Hashtags are stored lowercase without the leading hash. |
 | `delete_post(p_post_id)` | Void. Removes the owner's post, likes, comments and post-image associations. The underlying uploaded objects remain private to the owner until storage cleanup. |
-| `list_posts(p_feed='discover', p_before_id=null, p_author_id=null, p_hashtag=null, p_recycling_point_id=null, p_post_id=null, p_limit=20)` | Newest visible posts first. Use `following` for accepted follows, `p_author_id` for a profile grid, or `p_post_id` for detail. Filters combine. Each row has `id, author_id, username, display_name, caption, tags, photo_paths, recycling_point_id, visibility, created_at, like_count, comment_count, liked`. |
+| `list_posts(p_feed='discover', p_before_id=null, p_author_id=null, p_hashtag=null, p_recycling_point_id=null, p_post_id=null, p_limit=20)` | Newest visible posts first. Use `following` for accepted follows, `p_author_id` for a profile grid, or `p_post_id` for detail. Discover lists public posts on public profiles. Profile and detail queries can also return permitted followers-only posts. Filters combine. Each row has `id, author_id, username, display_name, caption, tags, photo_paths, recycling_point_id, visibility, created_at, like_count, comment_count, liked, check_in_id, check_in_points, edited_at`. |
 | `set_post_like(p_post_id, p_liked)` | Void. Setting the same state twice preserves the count. |
 | `create_comment(p_post_id, p_request_id, p_body)` | Numeric comment ID. Retries with the same request UUID return the original ID. Bodies must contain text and fit within 2,000 characters. |
 | `edit_comment(p_comment_id, p_body)` or `delete_comment(p_comment_id)` | Void. The owner edits or deletes their own comment. |

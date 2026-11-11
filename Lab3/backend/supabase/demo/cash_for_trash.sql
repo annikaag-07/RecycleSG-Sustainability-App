@@ -15,4 +15,10 @@ begin
         where not exists (
           select 1 from public.recycling_points where name=station_name and address=station_address
         );
+    insert into public.recycling_point_materials(recycling_point_id,material_type_id)
+        select p.id, m.id
+        from public.recycling_points p cross join public.material_types m
+        where p.name=station_name and p.address=station_address
+          and m.name in ('Clothing','Glass','Metal','Paper','Plastic')
+        on conflict do nothing;
 end $$;

@@ -1,5 +1,7 @@
 # Five-minute demo: start here
 
+For the expanded Lab 5 workflows, use the [Lab 5 rehearsal checklist](LAB5_REHEARSAL.md). This guide records the original recycling demo.
+
 The core journey passed against real Supabase and Gemini on 2026-10-26. Photo
 suggestions were added and regression-tested afterward. That automated run used
 explicitly simulated GPS. Human classroom rehearsal remains pending; this is a classroom prototype.

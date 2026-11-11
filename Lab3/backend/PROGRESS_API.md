@@ -26,6 +26,12 @@ await supabase.rpc('admin_decide_milestone', {
 
 Count each Singapore calendar date with a verified action once, using its submission time. Badge criteria are `verified_actions`, `streak` (longest achieved), or `regions` (distinct named regions of points visited). Points with an unknown region contribute to action and streak counts. An earned badge has a timestamp. A locked badge has null `earned_at`. A progress bar can render `Math.min(progress, target) / target`. For example, a regional badge could return `{"criterion":"regions","target":2,"progress":1,"earned_at":null}` alongside its display fields. Existing histories count immediately and earned badges survive rule changes.
 
+## Display rewards under the current rules
+
+The ordinary signed-in member can call `get_my_level_progress({})` for one row with `level, xp, xp_step, next_level_xp, remaining_xp`. Use the returned remaining XP in the profile and reward screens. A user keeps an attained level when an administrator raises the threshold.
+
+For the log form call `estimate_recycling_reward({p_material_type_id, p_quantity})`. For a pending action also pass its original `created_at` as `p_submitted_at`. The response is one row with `eco_points` and `xp`. Estimates use current rates and the applicable seasonal window. A verified action's actual payout comes from its `reward_transactions` row. Replace the fixed 10-points and 100-XP assumptions in LogRecyclingUI, RewardUI and ProfileUI when wiring these reads.
+
 ## Configure gamification
 
 Read `admin_get_game_rules({})` for an object containing `xp_step`, `materials`, `quests`, `badges` and `seasons`. Save with the following RPCs. A null `p_id` creates a row. An existing ID updates it.
@@ -71,3 +77,21 @@ Social events from blocked actors and references to hidden or deleted content ar
 From `Lab3/backend/tests`, run `npm ci` then `node --test progress.test.mjs database.test.mjs`. The local fixture applies the migrations and exercises caller-specific SQL permissions, terminal decisions, contributor deduplication, preference toggles, blocked actors, historical streaks, configurable payouts, earned and locked badge data, level/quest events, and reminder deduplication.
 
 On the integration project, use a regular user and an admin session to submit these RPCs through the frontend client. Open the same milestone in two admin sessions and confirm only one terminal decision succeeds. Check the scheduled reminder's run history and time zone on that deployment.
+
+## Rehearse the milestone and inbox path
+
+The three default milestones start active and need at least 1,000 points. For a quick demo, use a separate active milestone with a 10-point target and evidence notes that clearly say it is a rehearsal. A SQL editor user can create it on the disposable demo project:
+
+```sql
+insert into public.milestones
+    (name, description, organisation, target_points, expected_outcome, evidence_notes)
+select 'Lab 5 milestone rehearsal', 'Demonstrate the contribution and review flow',
+       'RecycleSG demo team', 10, 'Review the synthetic recycling record',
+       'Synthetic evidence for the Lab 5 rehearsal.'
+where not exists (
+    select 1 from public.milestones
+    where name = 'Lab 5 milestone rehearsal' and status in ('Active', 'AwaitingVerification')
+);
+```
+
+Use a confirmed member with at least 10 **available** points and progress notifications enabled. Contribute 10 through the app and use a separate signed-in admin to verify. Refresh the member's inbox and confirm exactly one notification for that milestone ID. The decision is terminal. Run the seed again after rehearsal for a fresh milestone, and earn another 10 spendable points before the presentation. If the demo uses private profiles, use separate accounts for the admin and contributor.

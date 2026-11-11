@@ -258,3 +258,14 @@ test('report replay isolates accounts and never submits the ownerless legacy que
   assert.equal(calls.length,2);
   assert.ok(storage.has(legacy));
 });
+
+test('a moderator can open moderation without gaining administrator access', async () => {
+  const { getMyRoles } = load('shared/api/proposed.ts', {
+    '@react-native-async-storage/async-storage': {},
+    './supabase': {supabase: {rpc: async name => ({
+      data: name === 'is_content_moderator', error: null,
+    })}},
+    './errors': load('shared/api/errors.ts'),
+  });
+  assert.deepEqual(await getMyRoles(), {isAdmin:false, isModerator:true});
+});

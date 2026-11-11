@@ -83,4 +83,9 @@ test('published monthly collection schedule remains separate from the blue bin a
     recycling_point_open_now(id,'2026-11-08 11:30+08') as ended
     from recycling_points where name like 'ALBA Cash for Trash%' and address like '%640456%'`);
   assert.deepEqual(rows,[{scheduled:true,following_sunday:false,ended:false}]);
+  const materials = await db.query(`select m.name from recycling_point_materials rpm
+    join material_types m on m.id = rpm.material_type_id
+    join recycling_points p on p.id = rpm.recycling_point_id
+    where p.name = 'ALBA Cash for Trash at Block 456' order by m.name`);
+  assert.deepEqual(materials.rows.map(m => m.name), ['Clothing','Glass','Metal','Paper','Plastic']);
 });

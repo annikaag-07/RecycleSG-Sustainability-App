@@ -7,6 +7,15 @@ import type { MilestoneStatus } from './types';
 // PostgREST: PGRST202 = function not found, PGRST205 = table not found, 42883 = undefined function.
 const MISSING = new Set(['PGRST202', 'PGRST205', '42883']);
 
+export async function getMyRoles() {
+  const [admin, moderator] = await Promise.all([
+    supabase.rpc('is_app_admin'),
+    supabase.rpc('is_content_moderator'),
+  ]);
+  const isAdmin = !admin.error && admin.data === true;
+  return { isAdmin, isModerator: isAdmin || (!moderator.error && moderator.data === true) };
+}
+
 async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await supabase.rpc(fn, args);
   if (error) {

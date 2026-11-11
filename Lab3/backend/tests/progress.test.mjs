@@ -105,3 +105,32 @@ test('verified action history, configurable awards and deduplicated reminders', 
     assert.equal((await rows(`select current_streak from progress_stats($1,${today}+1)`,[a]))[0].current_streak,0);
   } finally { await db.close(); }
 });
+
+test('ordinary users can display configured levels and estimated rewards that agree with verified payouts', async () => {
+  const { db, a, b, asUser } = await fixture();
+  const rows = async (sql, args = []) => (await db.query(sql,args)).rows;
+  try {
+    await rows('insert into app_admins(user_id) values($1)',[b]);
+    await asUser(b);
+    await rows('select admin_set_level_step(30)');
+    await rows('select admin_set_material_reward(1,6,12)');
+    await rows("select admin_save_season(null,'Demo',now()-interval '1 day',now()+interval '1 day',2)");
+    await asUser(a);
+    assert.deepEqual(await rows('select * from estimate_recycling_reward(1,2)'),[{eco_points:24,xp:48}]);
+    assert.deepEqual(await rows('select * from estimate_recycling_reward(1,2,now()-interval \'2 days\')'),[{eco_points:12,xp:24}]);
+    await assert.rejects(rows('select * from estimate_recycling_reward(1,0)'),{code:'22023'});
+    await assert.rejects(rows('select * from estimate_recycling_reward(-1,2)'),{code:'P0002'});
+    await db.exec('reset role');
+    const p=(await rows("insert into recycling_points(name,address,latitude,longitude) values ('Demo','Demo',1.3,103.5) returning id"))[0].id;
+    const c=(await rows('insert into check_ins(user_id,recycling_point_id,latitude,longitude) values($1,$2,1.3,103.5) returning id',[a,p]))[0].id;
+    const action=(await rows('insert into recycling_actions(user_id,check_in_id,material_type_id,quantity) values($1,$2,1,2) returning id',[a,c]))[0].id;
+    await rows("update recycling_actions set verification_status='Verified',verified_at=now() where id=$1",[action]);
+    await asUser(a);
+    assert.deepEqual(await rows('select eco_points_earned,xp_earned from reward_transactions'),[{eco_points_earned:24,xp_earned:48}]);
+    assert.deepEqual(await rows('select * from get_my_level_progress()'),[{level:2,xp:48,xp_step:30,next_level_xp:60,remaining_xp:12}]);
+    await asUser(b);
+    await rows('select admin_set_level_step(100)');
+    await asUser(a);
+    assert.deepEqual(await rows('select * from get_my_level_progress()'),[{level:2,xp:48,xp_step:100,next_level_xp:200,remaining_xp:152}]);
+  } finally {await db.close();}
+});

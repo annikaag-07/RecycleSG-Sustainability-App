@@ -36,7 +36,7 @@ function jwt(id) {
 const rpc = async (name, args = {}, user = a) => {
   const res = await fetch("http://127.0.0.1:" + httpPort + "/rpc/" + name, {
     method: "POST",
-    headers: { Authorization: "Bearer " + jwt(user), "Content-Type": "application/json" },
+    headers: { ...(user ? { Authorization: "Bearer " + jwt(user) } : {}), "Content-Type": "application/json" },
     body: JSON.stringify(args),
   });
   const text = await res.text();
@@ -131,6 +131,10 @@ try {
     const r = await rpc(name);
     assert.equal(r.status, 200, JSON.stringify([name, r]));
   }
+  const progress = await rpc("get_my_level_progress");
+  assert.equal(progress.data[0].next_level_xp, 100);
+  const estimate = await rpc("estimate_recycling_reward", { p_material_type_id: 1, p_quantity: 2 });
+  assert.deepEqual(estimate.data, [{eco_points: 20, xp: 20}]);
   const following = await rpc("set_follow", { p_user_id: b, p_follow: true });
   assert.deepEqual(following, { status: 200, data: "accepted" });
   await client.query("insert into storage.objects(bucket_id,name) values('post-photos',$1)", [
@@ -144,6 +148,9 @@ try {
     p_recycling_point_id: 1,
   }, b);
   assert.equal(post.status, 200, JSON.stringify(post));
+  const discover = await rpc("list_posts", { p_feed: "discover" }, null);
+  assert.equal(discover.status, 200, JSON.stringify(discover));
+  assert.equal(discover.data[0].id, post.data);
   const feed = await rpc("list_posts", { p_feed: "following", p_hashtag: "paper" });
   assert.equal(feed.data[0].id, post.data);
   const like = await rpc("set_post_like", { p_post_id: post.data, p_liked: true });

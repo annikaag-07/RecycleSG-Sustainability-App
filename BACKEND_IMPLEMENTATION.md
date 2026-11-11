@@ -41,9 +41,9 @@ For submission, 42501 means verification required, 22023 means invalid input or 
 
 | Surface | Result |
 |---|---|
-| Database and deletion workflow | 27 backend tests passed. All 39 migrations applied. An upgrade from the previous schema preserved balances and backfilled a seven-day streak badge. Deletion tests covered storage failure, retry, owner isolation and contribution retention. |
+| Database and deletion workflow | 30 backend tests passed. All 41 migrations applied. An upgrade from the previous schema preserved balances and backfilled a seven-day streak badge. Deletion tests covered storage failure, retry, owner isolation and contribution retention. |
 | PostgreSQL 18.6 and PostgREST 16.5 | Eight concurrent report submissions returned one ID. Two report reviews and two competing milestone decisions each produced one winner. Verification produced one contributor notification. Social feeds, blocks, likes, admin statistics and rules passed HTTP checks. |
-| Frontend | 14 tests and TypeScript passed. The matching Expo ESLint preset found five existing issues in the edited screens and zero new findings compared to main. |
+| Frontend | 15 tests and TypeScript passed. The matching Expo ESLint preset found five existing issues in the edited screens and zero new findings compared to main. |
 | Edge Function | Deno typechecking passed. The HTTP entry point passed preflight, missing-session and successful cleanup checks using the pinned SDK with simulated Auth and Storage services. |
 
 The hosted Auth password policy, real private media removal, hosted ban enforcement and scheduled reminder execution still need an integration deployment.
@@ -54,6 +54,8 @@ The hosted Auth password policy, real private media removal, hosted ban enforcem
 - With PostgREST installed and on PATH, run `npm ci && npm test` from `Lab3/backend/tests/native` after installing the parent tests. Set `POSTGREST_BIN` for a standalone binary. On macOS, set `POSTGREST_LIB_DIR` if the binary requires a separate libpq directory. The suite starts an ephemeral PostgreSQL database and PostgREST on loopback, signs synthetic test tokens, and checks the RPCs over HTTP with concurrent clients. Ports default to 55469 and 55470 and can be overridden with `TEST_DB_PORT` and `TEST_HTTP_PORT`. The Auth and Storage schemas are fixtures.
 - From `Lab3/frontend`, run `npm ci`, `npm run typecheck` and `npm test`. Tests exercise existing client calls and account isolation during offline replay.
 - Typecheck the Deno Edge Function with `deno check Lab3/backend/supabase/functions/delete-my-account/index.ts` from the repository root.
+
+See the [Lab 5 rehearsal checklist](docs/demo/LAB5_REHEARSAL.md) for hosted setup, test accounts and demo sign-off.
 
 ## Release to the team
 

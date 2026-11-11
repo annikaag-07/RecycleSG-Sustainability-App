@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { Platform } from 'react-native';
 import type { Session, User } from '@supabase/supabase-js';
 
-import { flushReportOutbox } from '@/shared/api/proposed';
+import { flushReportOutbox, getMyRoles } from '@/shared/api/proposed';
 import { supabase } from '@/shared/api/supabase';
 
 type AuthState = {
@@ -20,7 +20,7 @@ type AuthState = {
    * to show — every admin RPC checks it again on the server (NFR-SEC-09).
    */
   isAdmin: boolean;
-  /** The backend has no separate moderator role yet, so moderation follows the admin check. */
+  /** Admins and designated content moderators may access the moderation queue. */
   isModerator: boolean;
   /** False while the admin check for the current user is still running (avoids flashing "Administrators only"). */
   roleChecked: boolean;
@@ -76,15 +76,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [userId]);
 
   // Admin status per signed-in user. Any failure counts as "not an admin".
-  const [adminCheck, setAdminCheck] = useState<{ userId: string; isAdmin: boolean } | null>(null);
+  const [roleCheck, setRoleCheck] = useState<{ userId: string; isAdmin: boolean; isModerator: boolean } | null>(null);
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    supabase
-      .rpc('is_app_admin')
-      .then(({ data, error }) => {
-        if (!cancelled) setAdminCheck({ userId, isAdmin: !error && data === true });
-      });
+    getMyRoles().then(
+      (roles) => { if (!cancelled) setRoleCheck({ userId, ...roles }); },
+      () => { if (!cancelled) setRoleCheck({ userId, isAdmin: false, isModerator: false }); },
+    );
     return () => {
       cancelled = true;
     };
@@ -92,11 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthState>(() => {
     const user = session?.user ?? null;
-    const checked = !user || adminCheck?.userId === user.id;
-    const isAdmin = !!user && adminCheck?.userId === user.id && adminCheck.isAdmin;
+    const checked = !user || roleCheck?.userId === user.id;
+    const isAdmin = !!user && roleCheck?.userId === user.id && roleCheck.isAdmin;
     return {
       isAdmin,
-      isModerator: isAdmin,
+      isModerator: !!user && roleCheck?.userId === user.id && roleCheck.isModerator,
       roleChecked: checked,
       loading,
       session,
@@ -107,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       passwordRecovery,
       finishPasswordRecovery: () => setPasswordRecovery(false),
     };
-  }, [loading, session, guest, passwordRecovery, adminCheck]);
+  }, [loading, session, guest, passwordRecovery, roleCheck]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -38,7 +38,7 @@ test('members publish, approve followers, interact, block, and moderate through 
   assert.equal((await rows('SELECT * FROM storage.objects WHERE name=$1',[photo])).length, 1);
   await rows('SELECT set_post_like($1,true)', [post]);
   await rows('SELECT set_post_like($1,true)', [post]);
-  assert.equal(await value('SELECT like_count FROM list_posts()'), 1);
+  assert.equal(await value("SELECT like_count FROM list_posts('following')"), 1);
   await rows('SELECT set_post_like($1,false)', [post]);
   const comment = await value('SELECT create_comment($1,$2,$3)', [post,request,'Nice']);
   assert.equal(await value('SELECT create_comment($1,$2,$3)', [post,request,'Nice']),comment);
@@ -144,4 +144,54 @@ test('post detail, editing, comment deletion, and moderation outcomes use the cl
   await asUser(a);
   assert.equal(await value('SELECT user_action FROM list_my_moderation_notices()'),'ban');
   await assert.rejects(rows("INSERT INTO storage.objects(bucket_id,name) VALUES('post-photos',$1)",[a+'/third.jpg']),/security/);
+});
+
+test('guests read public Discover posts and photos while private posts stay in Following', async t => {
+  const {db,a,b,asUser} = await fixture();
+  t.after(() => db.close());
+  const rows = async (sql,args=[]) => (await db.query(sql,args)).rows;
+  await asUser(a);
+  for(const visibility of ['public','followers']){
+    const photo=a+'/'+visibility+'.jpg';
+    await rows("insert into storage.objects(bucket_id,name) values('post-photos',$1)",[photo]);
+    await rows("select create_post(gen_random_uuid(),$1,'Demo',array['demo'],null,$2)",[[photo],visibility]);
+  }
+  await asUser(b);
+  await rows('select set_follow($1,true)',[a]);
+  assert.deepEqual((await rows("select visibility from list_posts('discover')")).map(p=>p.visibility),['public']);
+  assert.equal((await rows("select id from list_posts('following')")).length,2);
+  await db.exec("reset role; select set_config('request.jwt.claim.sub','',false); set role anon");
+  assert.equal((await rows('select id from list_posts()')).length,1);
+  assert.deepEqual(await rows("select name from storage.objects where bucket_id='post-photos'"),[{name:a+'/public.jpg'}]);
+  await db.exec('reset role');
+  await rows('update auth.users set email_confirmed_at=null where id=$1',[b]);
+  await asUser(b);
+  await assert.rejects(rows('select set_follow($1,true)',[a]),{code:'42501'});
+});
+
+test('reward sharing attaches only the caller’s verified check-in and its awarded points', async t => {
+  const {db,a,b,asUser} = await fixture();
+  t.after(() => db.close());
+  const rows = async (sql,args=[]) => (await db.query(sql,args)).rows;
+  const point=(await rows("insert into recycling_points(name,address,latitude,longitude) values('N4','NTU',1.35,103.68) returning id"))[0].id;
+  const checkin=(await rows('insert into check_ins(user_id,recycling_point_id,latitude,longitude) values($1,$2,1.35,103.68) returning id',[a,point]))[0].id;
+  const action=(await rows('insert into recycling_actions(user_id,check_in_id,material_type_id,quantity) select $1,$2,min(id),2 from material_types returning id',[a,checkin]))[0].id;
+  const share=async(user,request)=>rows('select create_post(p_request_id=>$1,p_photo_paths=>$2,p_check_in_id=>$3) as id',[request,[user+'/share.jpg'],checkin]);
+  const request='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  for(const user of [a,b]){
+    await asUser(user);
+    await rows("insert into storage.objects(bucket_id,name) values('post-photos',$1)",[user+'/share.jpg']);
+    await assert.rejects(share(user,request),{code:'P0002'});
+  }
+  await db.exec('reset role');
+  await rows("update recycling_actions set verification_status='Verified',verified_at=now() where id=$1",[action]);
+  await asUser(b);
+  await assert.rejects(share(b,request),{code:'P0002'});
+  await asUser(a);
+  const [{id}] = await share(a,request);
+  assert.deepEqual(await share(a,request),[{id}]);
+  assert.deepEqual(await rows('select recycling_point_id,check_in_id,check_in_points,edited_at from list_posts(p_post_id=>$1)',[id]),
+    [{recycling_point_id:point,check_in_id:checkin,check_in_points:20,edited_at:null}]);
+  await rows("select edit_post($1,'Edited',array[]::text[],$2,'public')",[id,point]);
+  assert.ok((await rows('select edited_at from list_posts(p_post_id=>$1)',[id]))[0].edited_at);
 });

@@ -95,3 +95,9 @@ where not exists (
 ```
 
 Use a confirmed member with at least 10 **available** points and progress notifications enabled. Contribute 10 through the app and use a separate signed-in admin to verify. Refresh the member's inbox and confirm exactly one notification for that milestone ID. The decision is terminal. Run the seed again after rehearsal for a fresh milestone, and earn another 10 spendable points before the presentation. If the demo uses private profiles, use separate accounts for the admin and contributor.
+
+### Regional Recycler
+
+The existing `list_my_badge_progress()` RPC counts distinct named regions across the user's verified recycling actions. The default target is two. The database assigns Central, East, North, North-East, or West from point coordinates on import and when an automatically labelled point moves. Admins can supply a region explicitly. Points outside the mapped area keep a null region and contribute no region to progress. On a shared boundary the first matching region in alphabetical order wins.
+
+The migration also awards users who already qualify. Frontend clients can read the existing progress and earned timestamp without submitting a region. Boundaries come from the [URA Master Plan 2019 Region Boundary (No Sea)](https://data.gov.sg/datasets/d_bf4d24df9129d5a8ff8cf82e20959ee0/view).

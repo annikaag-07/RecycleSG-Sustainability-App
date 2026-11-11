@@ -58,7 +58,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Retry reports saved while offline / before the endpoint existed (UC 2.3.EX.4). Best-effort.
   const userId = session?.user?.id;
   useEffect(() => {
-    if (userId) flushReportOutbox().catch(() => undefined);
+    if (!userId) return;
+    let flushing = false;
+    const retry = async () => {
+      if (flushing) return;
+      flushing = true;
+      try {
+        await flushReportOutbox(userId);
+      } finally {
+        flushing = false;
+      }
+    };
+    const flush = () => { retry().catch(() => undefined); };
+    flush();
+    const timer = setInterval(flush, 60_000);
+    return () => clearInterval(timer);
   }, [userId]);
 
   // Admin status per signed-in user. Any failure counts as "not an admin".

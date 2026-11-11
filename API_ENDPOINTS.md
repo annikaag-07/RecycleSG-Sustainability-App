@@ -1,7 +1,18 @@
 # RecycleSG Backend API Reference (for frontend)
 
-Maintained API reference, updated 2026-10-28. Source of truth: `Lab3/backend/supabase/migrations/*.sql`,
+Maintained API reference, updated 2026-11-11. Source of truth: `Lab3/backend/supabase/migrations/*.sql`,
 `Lab3/CV/app.py` and `Lab3/CV/verification.py`. Setup and evidence are linked from [Lab 3](Lab3/README.md).
+
+## Lab 5 frontend contracts
+
+| Workflow | Calls and examples |
+|---|---|
+| Account deletion, password rules | [Account API](Lab3/backend/ACCOUNT_API.md) |
+| Points, opening hours, issue reports, admin statistics | [Finder API](Lab3/backend/FINDER_API.md) and [report review](BACKEND_IMPLEMENTATION.md#point-report-endpoints) |
+| Posts, media, follows, privacy, feeds, moderation | [Social API](Lab3/backend/SOCIAL_API.md) |
+| Milestone decisions, awards, badges, streaks and inbox | [Progress API](Lab3/backend/PROGRESS_API.md) |
+
+The branch contains the backend implementation. See [implementation and verification](BACKEND_IMPLEMENTATION.md) for release status. The sections below also cover the existing check-in, CV, rewards and milestone contracts.
 
 ## How the backend works
 
@@ -50,9 +61,9 @@ with `username = 'user_<uuid-without-dashes>'` and `display_name` from sign-up m
 Notes:
 - Local config has `auth.email.enable_confirmations = false`, so locally sign-up returns a session immediately
   (no verification step). The hosted project's setting is unknown — check with backend owner.
-- Password rule in config: `minimum_password_length = 6` by default; the SRS wants 8 + alphanumeric. Enforce in the UI.
+- Auth and frontend validation require eight characters with at least one letter and one digit.
 - **Singpass / SSO: not configured.**
-- **Account deletion: no endpoint.** Clients cannot delete `auth.users`; needs a server-side function.
+- Delete the current account with the authenticated `delete-my-account` Edge Function.
 
 ### Profiles (`profiles` table)
 
@@ -149,18 +160,17 @@ This is a material-match prototype: it does not validate quantity or physical di
 |---|---|---|---|---|
 | `GET /rest/v1/reward_transactions?select=*&order=created_at.desc` | Own reward history: one row per verified activity **or** per claimed quest | — | `[{ "id": 3, "user_id": "uuid", "recycling_action_id": 42, "quest_progress_id": null, "eco_points_earned": 40, "xp_earned": 40, "created_at": "..." }]` — quest rows have `recycling_action_id: null` and `quest_progress_id` set | User |
 | `POST /rest/v1/rpc/get_user_environmental_impact` | Own impact stats (verified actions only). `p_user_id` must equal your own ID, otherwise all zeros | `{ "p_user_id": "<auth uid>" }` | `[{ "total_verified_actions": 3, "total_recycled_units": 12, "estimated_co2_saved_kg": 1.20, "tree_equivalents": 0.060 }]` | User |
-| — (DB trigger `award_verified_recycling`) | When an action becomes `Verified`: +10 Eco Points and +10 XP per unit, `level = 1 + xp/100` | — | — | — |
+| — (DB trigger `award_verified_recycling`) | When an action becomes `Verified`, apply the configured material rate and seasonal multiplier. Defaults are 10 points and 10 XP per unit and 100 XP per level. | — | — | — |
 | `GET /rest/v1/quests?select=*` | Active quests | — | `[{ "id": 1, "title": "Daily Recycler", "description": "Verify 2 recycling activities today", "quest_type": "daily", "target_actions": 2, "reward_eco_points": 20, "reward_xp": 20, "is_active": true, "created_at": "..." }]` — `quest_type` ∈ `daily`, `weekly`, `one_time` | Public |
 | `GET /rest/v1/user_quest_progress?select=*&period_start=in.(2026-10-24,2026-10-19,1970-01-01)` | Own quest progress | — | `[{ "id": 1, "user_id": "uuid", "quest_id": 1, "period_start": "2026-10-24", "progress": 1, "completed_at": null, "claimed_at": null }]` | User |
 | `POST /rest/v1/rpc/claim_quest_reward` | Credit a completed quest's reward (once) | `{ "p_quest_id": 1, "p_period_start": "2026-10-24" }` | `[{ "eco_points_awarded": 20, "xp_awarded": 20, "new_balance": 70, "new_level": 1 }]` | User |
 | `GET /rest/v1/badges?select=*` | Badge definitions | — | `[{ "id": 1, "name": "First Step", "description": "...", "required_verified_actions": 1, "created_at": "..." }]` (thresholds 1, 10, 50, 100) | Public |
 | `GET /rest/v1/user_badges?select=*` | Own earned badges | — | `[{ "user_id": "uuid", "badge_id": 1, "earned_at": "..." }]` | User |
-| — (DB triggers `track_verified_quest_progress`, `award_recycling_badges`) | When an action becomes `Verified`: +1 progress on every active quest for the current period, and any badge whose threshold the user's verified-activity count has reached | — | — | — |
+| — (DB triggers `track_verified_quest_progress`, `award_recycling_badges`) | When an action becomes `Verified`: +1 progress on every active quest for the current period, and any eligible activity, streak or region badges | — | — | — |
 
-Level/XP/points: read from `profiles`. Quest and badge progress counts **verified activities** (one per material per check-in),
-not items. Quest periods follow Singapore time: a day starts at 00:00, a week on Monday 00:00; one-time quests use
+Level/XP/points: read from `profiles`. Activity-count quests and badges count verified activities. Streak and region badges use distinct days or regions. Quest periods follow Singapore time: a day starts at 00:00, a week on Monday 00:00; one-time quests use
 `period_start = 1970-01-01`. Claim errors: `Quest progress not found`, `Quest not completed`, `Reward already claimed`.
-Claiming adds to `eco_points`, `available_eco_points` and `xp` and writes a `reward_transactions` row. **No streaks.**
+Claiming adds to `eco_points`, `available_eco_points` and `xp` and writes a `reward_transactions` row. Use `get_my_streak` for the current Singapore-day streak.
 Impact uses illustrative factors: 0.1 kg CO₂ per unit and one tree equivalent per 20 kg CO₂; no measured saving or actual planting is established.
 
 ---
@@ -172,8 +182,7 @@ Impact uses illustrative factors: 0.1 kg CO₂ per unit and one tree equivalent 
 | `POST /rest/v1/rpc/get_leaderboard` | Everyone by lifetime `eco_points`, highest first | `{ "p_limit": 50 }` — default 10, max 100 | `[{ "rank": 1, "username": "user_cb08...", "display_name": "Alex Tan", "level": 2, "eco_points": 120 }]` | Public |
 | `POST /rest/v1/rpc/get_weekly_leaderboard` | Eco Points from recycling verified since Monday 00:00 Singapore time (quest rewards not counted), highest first | `{ "p_limit": 50 }` — default 10, max 100 | same columns; `eco_points` is the weekly total | Public |
 
-Both use `RANK()`, so equal totals share a rank, and leave out people with 0 points. **No friends scope** (there's no
-follows table), and no flag for the caller's own row (the app matches on `username` from the caller's profile).
+The global boards rank equal point totals together. Use `get_following_leaderboard` for the following board.
 
 ---
 
@@ -200,90 +209,11 @@ first result, a different amount with the same ID is refused. Errors: `Contribut
 |---|---|---|---|---|
 | `POST /rest/v1/rpc/get_community_feed` | Latest verified recycling activities, newest first | `{ "p_limit": 20 }` — default 20, max 100, no offset | `[{ "activity_id": 4, "username": "Anonymous Recycler", "display_name": "Alex Tan", "material": "Plastic", "quantity": 4, "recycled_at": "..." }]` | Public |
 
-Every verified activity is listed. `username` is always `Anonymous Recycler`; `display_name` is the recycler's (trimmed), or
-`Anonymous Recycler` when it's empty or unset. **No posts, comments, likes,
-follows, hashtags, blocks or notifications tables**, so PostDetailUI and PostComposerUI have nothing to call.
+For the Discover and Following photo feeds, use the [social endpoints](Lab3/backend/SOCIAL_API.md). The activity feed remains a separate surface.
 
----
+## 8. Administration
 
-## 8. Admin
-
-Admins are rows in the `app_admins` table (service role only); `is_app_admin()` checks the caller.
-`admin_list_milestones_for_review()` is live (section below). The app's admin screens are shown from
-`app_metadata.role = 'admin'` instead, so for now an admin needs both. Milestone decisions, recycling-point edits, report
-review, gamification config and moderation have no API.
-
----
-
-## Backend implementation updates
-
-The point-report submission and admin review RPCs are implemented on the Lab 5 backend branch. See [current contracts and deployment status](BACKEND_IMPLEMENTATION.md#point-report-endpoints). The baseline inventory below describes main at b25a0b4.
-
-## Proposed endpoints (frontend is already wired to these)
-
-These contracts are called through `src/shared/api/proposed.ts`. **Only the admin milestone-list RPC below
-is implemented**; the others are proposals. Missing functions return `PGRST202`, which the app presents as
-"not available on the server yet". Implementing the proposed signatures still requires end-to-end validation,
-authorisation and any necessary UI/data-flow changes.
-
-**Admin role.** The UI reads server-controlled app metadata; current SQL uses `app_admins`.
-Reconcile these before completing admin workflows. UI gating is not authorisation: each admin RPC must
-enforce the chosen server policy (NFR-SEC-09).
-
-| RPC | Args | Returns | Used by | Notes |
-|---|---|---|---|---|
-| `submit_point_report` | `p_recycling_point_id bigint, p_category text, p_description text, p_client_request_id uuid` | `bigint` report id | ReportIssueUI | `p_category` ∈ `full`, `missing_or_damaged`, `wrong_info`, `contaminated`. **Idempotent on `p_client_request_id`** — the app retries queued reports with the same id (NFR-QUAL-06). Status starts `Pending`; must not change what other users see (UC 2.3). Authenticated + verified users only. |
-| `delete_my_account` | — | `void` | SettingsUI | REQ-1.7. Requires a trusted deletion workflow, photo cleanup and a retention/anonymisation policy: milestone contributions currently restrict user deletion, so deleting Auth alone is insufficient. |
-| `admin_list_milestones_for_review` | — | rows: `id, name, description, organisation, target_points, current_points, expected_outcome, closing_date, status, evidence_url, evidence_notes, evidence_requested_note, decided_at, decision_reason` | MilestoneVerificationUI | **Live** at `3eb5cdd`. Returns `AwaitingVerification`, `Verified` and `Rejected` milestones. Admin = row in `app_admins`. |
-| `admin_decide_milestone` | `p_milestone_id bigint, p_decision text, p_reason text, p_expected_status text` | new `status` text | MilestoneVerificationUI | `p_decision` ∈ `verify`, `reject` (reason required), `request_evidence` (note required; stays `AwaitingVerification`). Refuse if current status ≠ `p_expected_status` so two admins can't both decide (UC 7.1.EX.2). Record decision, admin, timestamp, evidence ref; notify contributors on `verify` (REQ-13.11). |
-| `admin_moderation_queue` | — | rows: `target_type ('post'\|'comment'), target_id, author_id, author_name, excerpt, report_count, reasons text[], first_reported_at` | ModerationQueueUI | Ordered by `report_count` desc (REQ-11.3). Moderator or admin. Needs Person B's posts/comments/reports tables. |
-| `admin_moderate_content` | `p_target_type text, p_target_id bigint, p_content_action text, p_user_action text, p_note text` | `void` | ModerationQueueUI | `p_content_action` ∈ `dismiss`, `hide`, `delete`; `p_user_action` ∈ `none`, `warn`, `suspend`, `ban` (REQ-11.4). |
-
-**Kept on the device for now** (no backend storage; the UI says so): favourites (REQ-3.7), notification category
-toggles (REQ-10.3), home location (REQ-2.2), and reports waiting to be sent. Preferences/favourites live under `src/screens/find/`; the report outbox lives in `shared/api/proposed.ts`.
-The outbox currently uses one device-wide key and retries on auth changes; account scoping and retry behaviour need completion before enabling reports.
-
-**Auth configuration gap:** local `site_url` is `http://127.0.0.1:3000`, while Expo uses 8081.
-Configure the intended web/native redirect allowlist and validate callback handling; adding `recyclesg://`
-alone does not implement native recovery. Email delivery and reset flows are outside recorded demo sign-off.
-
----
-
-## Screens with no (or only partial) backend support
-
-Raise these with the backend owner.
-
-### Find, account and administration (UI-1)
-
-| Screen | Backend status | What still depends on the backend |
-|---|---|---|
-| LoginUI | ✅ Supabase Auth | Attempt counter ("3 attempts left") not exposed — app shows Supabase's rate-limit message instead; Singpass not configured |
-| RegistrationUI | ✅ Supabase Auth | Email verification disabled locally; terms acceptance stored in user metadata (no consent table); Singpass not configured |
-| MapUI | ✅ `search_nearby_recycling_points` + `recycling_points` select | Status is "Information Outdated" and hours are empty for every NEA point; generate the seed for a fresh local database |
-| SearchResultsUI | ✅ nearby + client-side material filter | Item→material mapping is a keyword table in the app (`shared/itemCatalog.ts`); only blue-bin materials have points in the dataset |
-| RecyclingPointDetailUI | ✅ `recycling_points` select | `operating_hours` empty; favourites kept on device (no table) |
-| DirectionsUI | ✅ Google Maps hand-off (no key) | In-app route + step list need a OneMap routing token |
-| ReportIssueUI | ⏳ `submit_point_report` (proposed) | Reports are queued on the device until the RPC exists; photo upload needs a storage bucket |
-| ProfileUI | ✅ profile, impact, check-ins, actions | Earned badge counts work; streaks and avatar upload remain unfinished |
-| SettingsUI | ✅ sign-out, password reset; ⏳ `delete_my_account` | Notification prefs + home location on device; profile visibility needs posts on the server |
-| MilestoneVerificationUI | ✅ `admin_list_milestones_for_review`; ⏳ `admin_decide_milestone` (proposed) | Decisions can't be saved yet; the server's admin check (`app_admins`) and the app's (`app_metadata.role`) differ |
-| ModerationQueueUI | ⏳ `admin_moderation_*` (proposed) | Needs posts/comments/reports tables (Person B + backend) |
-
-### Recycling, progress and community (UI-2)
-
-| Screen | Backend status | What's missing |
-|---|---|---|
-| CheckInUI | ✅ `create_gps_checkin` | Candidates/ties come from nearby search (100 m) + local Haversine; cooldown and daily limit are worked out from `check_ins` history. Radius, cooldown, limits are copied from the SQL into `screens/earn/rules.ts` because no endpoint exposes them. Offline check-in isn't queued: the server timestamps on arrival and only allows a log within 15 min |
-| LogRecyclingUI | ✅ `submit_recycling_activity` + `recycling-photos` upload | Photo selection calls `/classify`; submission uploads the chosen photo and sends its path as `p_photo_url`. Offline submit is not queued because of the 15-minute window |
-| RewardUI | ✅ trusted `/verify`, refresh and retry | Uncertain/unavailable results stay Pending; older-action retrieval is limited by history queries. No streaks; verified drops appear in the read-only feed |
-| EnvironmentalImpactUI | ✅ profile, impact, actions, `list_milestones` | — |
-| MilestoneContributionUI | ✅ `contribute_to_milestone`, `list_my_milestone_contributions` | — |
-| QuestsUI | ✅ `quests`, `user_quest_progress`, `claim_quest_reward` | No streaks (UC 4.1 step 5) |
-| CollectionUI | ✅ `badges`, `user_badges` | Badges don't record where they were earned, only when |
-| LeaderboardUI | ⚠️ partial — `get_weekly_leaderboard`, `get_leaderboard` | This week / All time both work. No friends board (no follows), no town. Own row matched by username |
-| FeedUI | ⚠️ partial — `get_community_feed` | Read-only list of verified drops by display name (usernames hidden): no Following/Discover, posts, photos, likes, comments or follows |
-| PostDetailUI | ❌ none | No posts/comments/likes — screen says so and links to the feed |
-| PostComposerUI | ❌ none | No posts table or post photos — screen says so and links to the feed |
+The app reads `is_app_admin()` for admin screen access. The server checks privileges on every admin operation. The social endpoints separately support content moderators. See the workflow guides above for provisioning, decision arguments and returned rows.
 
 ## Ownership and maintenance
 

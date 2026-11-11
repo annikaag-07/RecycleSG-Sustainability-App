@@ -1,6 +1,3 @@
-// Calls to endpoints the backend does NOT have yet. Contracts are proposed in API_ENDPOINTS.md
-// ("Proposed endpoints") for the backend owner. Until they exist, every function throws
-// ApiError with code 'not_available', and screens show an honest "not available yet" state.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { supabase } from './supabase';
@@ -44,9 +41,9 @@ export type PointReport = {
   createdAt: string;
 };
 
-/** Proposed RPC: submit_point_report(p_recycling_point_id, p_category, p_description, p_client_request_id) → report id. */
-export async function submitPointReport(r: PointReport): Promise<number> {
-  return rpc<number>('submit_point_report', {
+export async function submitPointReport(ownerId: string, r: PointReport): Promise<number> {
+  return rpc<number>('submit_owned_point_report', {
+    p_owner_id: ownerId,
     p_recycling_point_id: r.recyclingPointId,
     p_category: r.category,
     p_description: r.description,
@@ -54,49 +51,39 @@ export async function submitPointReport(r: PointReport): Promise<number> {
   });
 }
 
-// Reports that couldn't be sent (offline, or endpoint not live yet) wait here and are retried later
-// with the same clientRequestId, so the server can ignore duplicates (UC 2.3.EX.4/EX.5).
-const OUTBOX_KEY = 'recyclesg.reports.outbox.v1';
+// The owner of v1 entries cannot be established after an account switch.
+const reportPrefix = (ownerId: string) => `recyclesg.reports.outbox.v2.${ownerId}.`;
 
-export async function listQueuedReports(): Promise<PointReport[]> {
-  try {
-    const raw = await AsyncStorage.getItem(OUTBOX_KEY);
-    return raw ? (JSON.parse(raw) as PointReport[]) : [];
-  } catch {
-    return [];
-  }
+export async function queueReport(ownerId: string, report: PointReport) {
+  await AsyncStorage.setItem(reportPrefix(ownerId) + report.clientRequestId, JSON.stringify(report));
 }
 
-export async function queueReport(r: PointReport) {
-  const list = (await listQueuedReports()).filter((q) => q.clientRequestId !== r.clientRequestId);
-  await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify([...list, r]));
-}
-
-/** Tries to send every queued report; keeps the ones that still fail. Returns how many were sent. */
-export async function flushReportOutbox(): Promise<number> {
-  const queued = await listQueuedReports();
-  if (queued.length === 0) return 0;
-  const remaining: PointReport[] = [];
+export async function flushReportOutbox(ownerId: string): Promise<number> {
+  const prefix = reportPrefix(ownerId);
+  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(prefix));
   let sent = 0;
-  for (const r of queued) {
+  for (const key of keys) {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) continue;
     try {
-      await submitPointReport(r);
+      const report: PointReport = JSON.parse(raw);
+      await submitPointReport(ownerId, report);
+      await AsyncStorage.removeItem(key);
       sent++;
     } catch {
-      remaining.push(r);
+      // Keep this item for its owner's next session or reconnect.
     }
   }
-  await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(remaining));
   return sent;
 }
 
 // ---------------------------------------------------------------------------------------------
-// Account deletion (REQ-1.7, UC 6.1.AC.6) — deleting an auth user needs a SECURITY DEFINER function.
+// Account deletion (REQ-1.7, UC 6.1.AC.6) — personal media and identity cleanup run in the Edge Function.
 // ---------------------------------------------------------------------------------------------
 
-/** Proposed RPC: delete_my_account() — deletes auth.users row for auth.uid() (profiles cascade). */
-export function deleteMyAccount() {
-  return rpc<void>('delete_my_account');
+export async function deleteMyAccount() {
+  const { error } = await supabase.functions.invoke('delete-my-account', { method: 'POST' });
+  if (error) throw toApiError(error);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -131,7 +118,7 @@ export function listMilestonesForReview() {
 }
 
 /**
- * Proposed RPC: admin_decide_milestone(p_milestone_id, p_decision, p_reason, p_expected_status).
+ * RPC: admin_decide_milestone(p_milestone_id, p_decision, p_reason, p_expected_status).
  * p_expected_status lets the server refuse a second decision if another admin got there first (UC 7.1.EX.2).
  */
 export function decideMilestone(milestoneId: number, decision: MilestoneDecision, reason: string | null) {
@@ -161,12 +148,12 @@ export type ModerationItem = {
 export type ContentAction = 'dismiss' | 'hide' | 'delete';
 export type UserAction = 'none' | 'warn' | 'suspend' | 'ban';
 
-/** Proposed RPC: admin_moderation_queue() → ModerationItem[] ordered by report_count desc (REQ-11.3). */
+/** RPC: admin_moderation_queue() → ModerationItem[] ordered by report_count desc (REQ-11.3). */
 export function moderationQueue() {
   return rpc<ModerationItem[]>('admin_moderation_queue');
 }
 
-/** Proposed RPC: admin_moderate_content(p_target_type, p_target_id, p_content_action, p_user_action, p_note). */
+/** RPC: admin_moderate_content(p_target_type, p_target_id, p_content_action, p_user_action, p_note). */
 export function moderateContent(item: Pick<ModerationItem, 'target_type' | 'target_id'>, content: ContentAction, user: UserAction, note: string | null) {
   return rpc<void>('admin_moderate_content', {
     p_target_type: item.target_type,

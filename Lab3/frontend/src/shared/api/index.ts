@@ -10,10 +10,11 @@ import * as points from './points';
 import * as profile from './profile';
 import * as progress from './progress';
 import * as proposed from './proposed';
+import * as social from './social';
 import * as verification from './verification';
 
 /** `api.proposed.*` targets endpoints the backend doesn't have yet — see API_ENDPOINTS.md. */
-export const api = { auth, checkins, classification, community, milestones, onemap, photos, points, profile, progress, proposed, verification };
+export const api = { auth, checkins, classification, community, milestones, onemap, photos, points, profile, progress, proposed, social, verification };
 
 export { supabase } from './supabase';
 export { ApiError, toApiError } from './errors';

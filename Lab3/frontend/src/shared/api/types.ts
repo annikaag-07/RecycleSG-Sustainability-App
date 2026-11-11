@@ -220,3 +220,63 @@ export type UserBadge = {
   badge_id: number;
   earned_at: string;
 };
+
+// ---------------------------------------------------------------------------------------------
+// Posts, comments, likes and follows (social_community, social_demo_contracts migrations; Lab3/backend/SOCIAL_API.md)
+// ---------------------------------------------------------------------------------------------
+
+export type FeedKind = 'discover' | 'following';
+export type PostVisibility = 'public' | 'followers';
+
+/** Returned by list_posts. Counts leave out people the viewer has blocked, or who blocked them. */
+export type Post = {
+  id: number;
+  author_id: string;
+  /** Defaults to "user_" plus the account ID, so screens show display_name (see personName). */
+  username: string;
+  display_name: string | null;
+  caption: string;
+  /** Lowercase, without the "#". */
+  tags: string[];
+  /** One to eight paths in the private `post-photos` bucket, in the order chosen. */
+  photo_paths: string[];
+  recycling_point_id: number | null;
+  visibility: PostVisibility;
+  created_at: string;
+  like_count: number;
+  comment_count: number;
+  /** Whether the viewer has liked it. Always false for a guest. */
+  liked: boolean;
+  /** Set when shared from a verified check-in; check_in_points is the Eco Points it earned. */
+  check_in_id: number | null;
+  check_in_points: number | null;
+  edited_at: string | null;
+};
+
+/** Returned by list_post_comments, newest first. */
+export type PostComment = {
+  id: number;
+  author_id: string;
+  username: string;
+  display_name: string | null;
+  body: string;
+  created_at: string;
+};
+
+/** 'accepted' follows, 'pending' waits for a followers-only account to approve. */
+export type FollowState = 'accepted' | 'pending' | 'none';
+
+/** Returned by get_social_profile. Bio, avatar and counts are null on a followers-only account until a follow is approved. */
+export type SocialProfile = {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  visibility: PostVisibility;
+  follow_state: FollowState;
+  bio: string | null;
+  avatar_url: string | null;
+  follower_count: number | null;
+  following_count: number | null;
+};
+
+export type ReportTarget = 'post' | 'comment';

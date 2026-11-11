@@ -309,14 +309,7 @@ function AccountSection({ email }: { email: string }) {
       router.replace('/login');
     } catch (e) {
       const err = toApiError(e);
-      // UC 6.1.EX.4: nothing is removed if it fails.
-      setMessage({
-        tone: 'error',
-        text:
-          err.code === 'not_available'
-            ? "Account deletion isn't available on the server yet. Nothing was deleted."
-            : `Nothing was deleted: ${err.message}`,
-      });
+      setMessage({ tone: 'error', text: `Account removal needs another attempt. ${err.message}` });
       setBusy(undefined);
     }
   };

@@ -234,3 +234,38 @@ test('verification client sends only activity ID/token and bounds a hanging resp
     else process.env.EXPO_PUBLIC_VERIFICATION_URL=previousUrl;
   }
 });
+
+test('report replay isolates accounts and never submits the ownerless legacy queue', async () => {
+  const legacy = 'recyclesg.reports.outbox.v1';
+  const storage = new Map([[legacy, '[{"clientRequestId":"legacy"}]']]);
+  const calls = [];
+  const { queueReport, flushReportOutbox } = load('shared/api/proposed.ts', {
+    '@react-native-async-storage/async-storage': { __esModule: true, default: {
+      setItem: async(k,v) => storage.set(k,v), getItem: async k => storage.get(k) ?? null,
+      getAllKeys: async() => Array.from(storage.keys()), removeItem: async k => storage.delete(k),
+    } },
+    './errors': load('shared/api/errors.ts'),
+    './supabase': {supabase:{rpc:async(name,args) => {calls.push({name,args});return {data:1};}}},
+  });
+  const report = {clientRequestId:'one',recyclingPointId:5,category:'full',description:null};
+  await queueReport('alice',report);
+  await queueReport('bob',{...report,clientRequestId:'two'});
+  assert.equal(await flushReportOutbox('bob'),1);
+  assert.equal(calls[0].args.p_owner_id,'bob');
+  assert.equal(calls[0].args.p_client_request_id,'two');
+  assert.equal(await flushReportOutbox('bob'),0);
+  assert.equal(await flushReportOutbox('alice'),1);
+  assert.equal(calls.length,2);
+  assert.ok(storage.has(legacy));
+});
+
+test('a moderator can open moderation without gaining administrator access', async () => {
+  const { getMyRoles } = load('shared/api/proposed.ts', {
+    '@react-native-async-storage/async-storage': {},
+    './supabase': {supabase: {rpc: async name => ({
+      data: name === 'is_content_moderator', error: null,
+    })}},
+    './errors': load('shared/api/errors.ts'),
+  });
+  assert.deepEqual(await getMyRoles(), {isAdmin:false, isModerator:true});
+});

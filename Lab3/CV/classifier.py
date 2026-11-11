@@ -5,6 +5,7 @@ The app always lets the user confirm or change the material, so this is a sugges
 Set CV_MOCK=1 to test the plumbing without an API key (answers come from the filename).
 """
 import argparse
+import logging
 import os
 import time
 from typing import Literal, Optional
@@ -20,6 +21,7 @@ except ImportError:
 MATERIALS = ["plastic", "paper", "metal", "e-waste", "batteries", "clothing", "cardboard", "glass", "lighting waste"]
 UNCLEAR = "unclear"
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+logger = logging.getLogger(__name__)
 
 
 def threshold() -> float:
@@ -105,8 +107,12 @@ def classify_image(image_bytes: bytes, mime_type: str = "image/jpeg", filename: 
             result = _call_gemini(image_bytes, mime_type)
     except MissingKeyError:
         raise
-    except Exception:  # network, quota, bad response: let the caller retry Pending
-        pass
+    except Exception as error:  # network, quota, bad response: let the caller retry Pending
+        code = getattr(error, 'code', None)
+        # Provider messages can contain request details. Log only safe diagnostics.
+        logger.warning('Gemini request failed: type=%s http_code=%s elapsed_ms=%d',
+                       type(error).__name__, code if isinstance(code, int) else None,
+                       int((time.perf_counter() - start) * 1000))
     latency = int((time.perf_counter() - start) * 1000)
     base = {"model": "mock" if os.getenv("CV_MOCK") == "1" else DEFAULT_MODEL, "latency_ms": latency}
     if result is None:

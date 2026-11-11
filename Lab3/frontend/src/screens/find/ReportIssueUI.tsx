@@ -74,14 +74,18 @@ export default function ReportIssueUI() {
       createdAt: new Date().toISOString(),
     };
     try {
-      await api.proposed.submitPointReport(report);
+      await api.proposed.submitPointReport(user.id, report);
       setOutcome({ kind: 'sent' });
     } catch (e) {
       const err = toApiError(e);
       if (err.isNetwork || err.code === 'not_available') {
         // UC 2.3.EX.4: keep it on the device and send later with the same request id.
-        await api.proposed.queueReport(report);
-        setOutcome({ kind: 'queued', reason: err.isNetwork ? 'offline' : 'not_available' });
+        try {
+          await api.proposed.queueReport(user.id, report);
+          setOutcome({ kind: 'queued', reason: err.isNetwork ? 'offline' : 'not_available' });
+        } catch {
+          setError('Could not save this report on your device. Please try sending it again.');
+        }
       } else {
         setError(err.message);
       }

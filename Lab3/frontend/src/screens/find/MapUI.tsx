@@ -78,6 +78,7 @@ export default function MapUI() {
     if (permission === 'checking') return <Centered label="Finding your location…" />;
     return (
       <LocationOff
+        locationEnabled={permission === 'granted'}
         canAskAgain={canAskAgain}
         error={locError}
         onTurnOn={() => (canAskAgain ? locate(true) : openAppSettings())}
@@ -158,8 +159,8 @@ function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin:
             {origin.label}
           </AppText>
           <IconButton icon="list" label="Nearest points list" onPress={() => router.push(withOrigin('/find/search', origin))} />
-          <IconButton icon="crosshair" label="Change search location" onPress={onChangeOrigin} />
         </View>
+        <Button label="Change search location" variant="secondary" onPress={onChangeOrigin} />
         <TextField
           icon="search"
           placeholder="What are you recycling?"
@@ -330,6 +331,7 @@ function PointCard({
 
 /** UC 2.1.EX.3 / mockup "Location is switched off": discovery still works by address; check-in does not. */
 function LocationOff({
+  locationEnabled,
   canAskAgain,
   error,
   onTurnOn,
@@ -337,6 +339,7 @@ function LocationOff({
   home,
   onHome,
 }: {
+  locationEnabled: boolean;
   canAskAgain: boolean;
   error?: string;
   onTurnOn: () => void;
@@ -375,14 +378,14 @@ function LocationOff({
           <>
             <EmptyState
               icon="map-pin"
-              title="Location is switched off"
-              message="RecycleSG needs your location to sort points by distance and to check you in at a bin. Nothing is stored beyond the check-in itself."
+              title={locationEnabled ? 'Choose search location' : 'Location is switched off'}
+              message="Find recycling points around your current location or another address in Singapore."
             />
             {error && <Banner tone="warning">{error}</Banner>}
             {blockedOnWeb && (
               <Banner tone="info">Location is blocked for this site. Allow it in your browser's site settings, then reload.</Banner>
             )}
-            <Button label={canAskAgain || Platform.OS === 'web' ? 'Turn on location' : 'Open settings'} onPress={onTurnOn} />
+            <Button label={locationEnabled ? 'Use current location' : canAskAgain || Platform.OS === 'web' ? 'Turn on location' : 'Open settings'} onPress={onTurnOn} />
             {home && <Button label={`Use home: ${home.label}`} variant="secondary" onPress={onHome} />}
             <Button label="Search by address instead" variant="secondary" onPress={() => setSearching(true)} />
           </>
@@ -418,8 +421,7 @@ function LocationOff({
           </>
         )}
         <Banner tone="info">
-          The finder still works without location — you can search an address. Check-in cannot, because proximity is the
-          anti-cheating basis for awarding points.
+          Search around any address in Singapore. Check-in uses your current GPS location.
         </Banner>
       </ScrollView>
     </SafeAreaView>

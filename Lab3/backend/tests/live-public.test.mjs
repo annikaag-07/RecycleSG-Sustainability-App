@@ -25,8 +25,8 @@ test('live public material catalogue has nine categories', async () => {
   assert.ok(data.some(row => row.name === 'Plastic'));
 });
 
-test('live seed contains 12,300 recycling points', async () => {
-  const { response } = await request('/rest/v1/recycling_points?select=id&limit=1');
+test('live NEA seed contains 12,300 recycling points alongside demo fixtures', async () => {
+  const { response } = await request('/rest/v1/recycling_points?select=id&source=eq.NEA%20Recycling%20Bins&limit=1');
   assert.ok(response.ok); // PostgREST returns 206 for counted partial ranges.
   assert.match(response.headers.get('content-range'), /\/12300$/);
 });

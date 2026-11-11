@@ -93,7 +93,8 @@ def main():
             assert saved['name'] == f'API acceptance {manifest["run"]}'
             call('DELETE', f'/rest/v1/milestone_contributions?milestone_id=eq.{mid}')
             call('DELETE', f'/rest/v1/milestones?id=eq.{mid}')
-        call('DELETE', '/storage/v1/object/recycling-photos', payload={'prefixes': manifest['photos']})
+        if manifest['photos']:
+            call('DELETE', '/storage/v1/object/recycling-photos', payload={'prefixes': manifest['photos']})
         for account in manifest['accounts']:
             session = call('POST', '/auth/v1/token?grant_type=password', public=True,
                            payload={'email': account['email'], 'password': account['password']})
@@ -133,7 +134,8 @@ def main():
         with TestClient(app) as client:
             suggestion = client.post('/classify', files={'file': ('bottle.png', image, 'image/png')})
         assert suggestion.status_code == 200
-        assert suggestion.json()['status'] == 'ok' and suggestion.json()['material'] == 'plastic'
+        assert suggestion.json()['status'] == 'ok' and suggestion.json()['material'] == 'plastic', {
+            field: suggestion.json().get(field) for field in ['status', 'material', 'confidence', 'latency_ms']}
         assert suggestion.json()['model'] != 'mock'
         assert profile(a)['eco_points'] == 0
         record('real Gemini suggestion is plastic and awards nothing')
@@ -167,7 +169,8 @@ def main():
         record('concurrent real Gemini verification and retry award exactly once; badge unlocked')
 
         rejected = submit(1, 'Glass')
-        assert verify(rejected, a)['status'] == 'Rejected'
+        rejected_result = verify(rejected, a)
+        assert rejected_result['status'] == 'Rejected', rejected_result
         assert verify(rejected, a)['activity_impact']['estimated_co2_saved_kg'] == 0
         pending = submit(2, 'Plastic')
         impact = rpc('get_user_environmental_impact', {'p_user_id': a['id']}, a)[0]

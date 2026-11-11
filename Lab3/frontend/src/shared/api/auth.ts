@@ -3,7 +3,7 @@ import * as Linking from 'expo-linking';
 import { supabase } from './supabase';
 import { toApiError } from './errors';
 
-/** REQ-1.2: at least 8 characters, letters and digits. The backend only enforces 6, so the UI must check. */
+/** REQ-1.2: at least 8 characters, letters and digits. Matches the Supabase Auth password policy. */
 export function passwordProblem(password: string): string | null {
   if (password.length < 8) return 'At least 8 characters';
   if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return 'Use both letters and numbers';

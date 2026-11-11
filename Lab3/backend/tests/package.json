@@ -2,6 +2,6 @@
   "name": "recyclesg-database-tests",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test database.test.mjs" },
+  "scripts": { "test": "node --test database.test.mjs account*.test.mjs finder.test.mjs progress.test.mjs social.test.mjs upgrade.test.mjs regions.test.mjs" },
   "devDependencies": { "@electric-sql/pglite": "0.5.11" }
 }

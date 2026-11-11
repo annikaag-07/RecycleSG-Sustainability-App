@@ -176,3 +176,52 @@ test('UI-2: the following leaderboard maps the app period to the server key', as
     { name: 'get_following_leaderboard', args: { p_period: 'all_time', p_limit: 10 } },
   ]);
 });
+
+test('UI-2: inbox entries name the person or thing and know where to go', () => {
+  const { describe, actorIds } = load('screens/earn/inbox.ts');
+  const names = {
+    people: new Map([['u1', 'Ben Lim']]),
+    badges: new Map([[3, 'Eco Starter']]),
+    quests: new Map([[2, 'Two drops']]),
+    milestones: new Map([[7, 'Beach clean-up']]),
+  };
+  const n = (kind, payload) => ({ id: 1, category: 'social', kind, payload, created_at: '', read_at: null });
+  assert.deepEqual(describe(n('like', { actor_id: 'u1', post_id: 9 }), names), { text: 'Ben Lim liked your post', icon: 'heart', target: { to: 'post', id: 9 } });
+  assert.equal(describe(n('comment', { actor_id: 'gone', post_id: 9 }), names).text, 'Someone commented on your post');
+  assert.deepEqual(describe(n('follow', { actor_id: 'u1' }), names).target, { to: 'user', id: 'u1' });
+  assert.equal(describe(n('level_up', { level: 4 }), names).text, 'You reached level 4');
+  assert.equal(describe(n('badge_earned', { badge_id: 3 }), names).text, 'You earned the Eco Starter badge');
+  assert.equal(describe(n('badge_earned', { badge_id: 99 }), names).text, 'You earned a new badge');
+  assert.equal(describe(n('quest_completed', { quest_id: 2 }), names).text, 'You completed “Two drops”. Claim your reward.');
+  assert.deepEqual(describe(n('milestone_verified', { milestone_id: 7 }), names).target, { to: 'milestone', id: 7 });
+  assert.deepEqual(describe(n('streak_at_risk', { local_date: '2026-11-11' }), names).target, { to: 'find' });
+  assert.deepEqual(actorIds([n('like', { actor_id: 'a' }), n('follow', { actor_id: 'a' }), n('level_up', {})]), ['a']);
+});
+
+test('UI-2: people, follow request, block, privacy and inbox RPCs use the contract keys', async () => {
+  const calls = [];
+  const rpc = async (name, args) => { calls.push({ name, args }); return { data: name === 'get_my_notification_preferences' ? [] : [], error: null }; };
+  const s = social(rpc);
+  assert.deepEqual(await s.findPeople('   '), [], 'a blank search never reaches the server');
+  await s.findPeople(' ben ');
+  await s.listFollowRequests();
+  await s.decideFollowRequest('u2', false);
+  await s.setBlock('u2', true);
+  await s.setProfileVisibility('followers');
+  const n = load('shared/api/notifications.ts', { './supabase': { supabase: { rpc } }, './errors': errors });
+  await n.listMyNotifications(40);
+  await n.markNotificationRead(5);
+  assert.deepEqual(await n.getNotificationPreferences(), { social: true, progress: true, streak_reminder: false }, 'defaults when there is no row');
+  await n.setNotificationPreferences({ social: false, progress: true, streak_reminder: true });
+  assert.deepEqual(calls, [
+    { name: 'find_social_profiles', args: { p_query: 'ben', p_limit: 20 } },
+    { name: 'list_follow_requests', args: {} },
+    { name: 'decide_follow_request', args: { p_user_id: 'u2', p_accept: false } },
+    { name: 'set_block', args: { p_user_id: 'u2', p_block: true } },
+    { name: 'set_profile_visibility', args: { p_visibility: 'followers' } },
+    { name: 'list_my_notifications', args: { p_before_id: 40, p_limit: 20 } },
+    { name: 'mark_notification_read', args: { p_id: 5 } },
+    { name: 'get_my_notification_preferences', args: undefined },
+    { name: 'set_notification_preferences', args: { p_social: false, p_progress: true, p_streak_reminder: true } },
+  ]);
+});

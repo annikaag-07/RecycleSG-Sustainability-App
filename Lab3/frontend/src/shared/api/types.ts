@@ -296,5 +296,47 @@ export type SocialProfile = {
 
 export type ReportTarget = 'post' | 'comment';
 
+/** Returned by find_social_profiles (prefix search on username or display name) and list_follow_requests. */
+export type PersonSummary = {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  /** Not returned by list_follow_requests. */
+  visibility?: PostVisibility;
+};
+
+export type NotificationKind =
+  | 'like'
+  | 'comment'
+  | 'follow'
+  | 'level_up'
+  | 'badge_earned'
+  | 'quest_completed'
+  | 'milestone_verified'
+  | 'streak_at_risk';
+
+/** Returned by list_my_notifications, newest first. The payload's IDs depend on the kind (PROGRESS_API.md). */
+export type AppNotification = {
+  id: number;
+  category: 'social' | 'progress' | 'streak_reminder';
+  kind: NotificationKind;
+  payload: {
+    actor_id?: string;
+    post_id?: number;
+    comment_id?: number;
+    level?: number;
+    badge_id?: number;
+    quest_id?: number;
+    period_start?: string;
+    milestone_id?: number;
+    local_date?: string;
+  };
+  created_at: string;
+  read_at: string | null;
+};
+
+/** get_my_notification_preferences / set_notification_preferences. */
+export type NotificationPreferences = { social: boolean; progress: boolean; streak_reminder: boolean };
+
 /** Returned by get_following_leaderboard: you and the people you follow, with points above zero. */
 export type FollowingLeaderboardEntry = LeaderboardEntry & { user_id: string };

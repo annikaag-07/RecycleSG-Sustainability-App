@@ -4,6 +4,7 @@ import * as checkins from './checkins';
 import * as classification from './classification';
 import * as community from './community';
 import * as milestones from './milestones';
+import * as notifications from './notifications';
 import * as onemap from './onemap';
 import * as photos from './photos';
 import * as points from './points';
@@ -14,7 +15,7 @@ import * as social from './social';
 import * as verification from './verification';
 
 /** `api.proposed.*` targets endpoints the backend doesn't have yet — see API_ENDPOINTS.md. */
-export const api = { auth, checkins, classification, community, milestones, onemap, photos, points, profile, progress, proposed, social, verification };
+export const api = { auth, checkins, classification, community, milestones, notifications, onemap, photos, points, profile, progress, proposed, social, verification };
 
 export { supabase } from './supabase';
 export { ApiError, toApiError } from './errors';

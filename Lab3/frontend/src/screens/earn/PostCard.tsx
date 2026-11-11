@@ -13,6 +13,7 @@ import { countLabel } from './postRules';
 import { timeAgo } from './time';
 
 export const openPost = (id: number) => router.push({ pathname: '/feed/post/[id]', params: { id: String(id) } });
+export const openProfile = (id: string) => router.push({ pathname: '/feed/user/[id]', params: { id } });
 
 /** Author, place and time, and the Eco Points the linked check-in earned (UC 5.1: a post carries where it happened). */
 export function PostAuthor({ post, place, now, trailing }: { post: Post; place?: string; now: Date; trailing?: ReactNode }) {
@@ -20,15 +21,22 @@ export function PostAuthor({ post, place, now, trailing }: { post: Post; place?:
   const when = timeAgo(new Date(post.created_at), now);
   return (
     <View style={styles.author}>
-      <Avatar name={name} />
-      <View style={styles.fill}>
-        <AppText variant="bodyStrong" numberOfLines={1}>
-          {name}
-        </AppText>
-        <AppText variant="small" color="textMuted" numberOfLines={1}>
-          {[place, when, post.visibility === 'followers' ? 'Followers' : null].filter(Boolean).join(' · ')}
-        </AppText>
-      </View>
+      <Pressable
+        onPress={() => openProfile(post.author_id)}
+        style={styles.who}
+        accessibilityRole="button"
+        accessibilityLabel={`${name}'s profile`}
+      >
+        <Avatar name={name} />
+        <View style={styles.fill}>
+          <AppText variant="bodyStrong" numberOfLines={1}>
+            {name}
+          </AppText>
+          <AppText variant="small" color="textMuted" numberOfLines={1}>
+            {[place, when, post.visibility === 'followers' ? 'Followers' : null].filter(Boolean).join(' · ')}
+          </AppText>
+        </View>
+      </Pressable>
       {post.check_in_points != null && (
         <View style={styles.points} accessibilityLabel={`Earned ${post.check_in_points} Eco Points`}>
           <AppText variant="small" style={styles.bold}>
@@ -119,6 +127,7 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
   card: { gap: spacing.sm, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   author: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  who: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   points: { paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.chipSelected },
   photo: { borderRadius: radius.md },
   more: {

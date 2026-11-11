@@ -7,6 +7,7 @@ import type {
   FollowingLeaderboardEntry,
   FollowState,
   LeaderboardPeriod,
+  PersonSummary,
   Post,
   PostComment,
   PostVisibility,
@@ -145,6 +146,31 @@ export async function getSocialProfile(userId: string): Promise<SocialProfile | 
 /** Following a followers-only account sends a request and returns 'pending'. False unfollows or withdraws it. */
 export async function setFollow(userId: string, follow: boolean): Promise<FollowState> {
   return call<FollowState>('set_follow', { p_user_id: userId, p_follow: follow });
+}
+
+/** Prefix search on username or display name. Blocked accounts are left out. */
+export async function findPeople(query: string, limit = 20): Promise<PersonSummary[]> {
+  if (!query.trim()) return [];
+  return call<PersonSummary[]>('find_social_profiles', { p_query: query.trim(), p_limit: limit });
+}
+
+/** People waiting for you to approve their follow (only followers-only accounts get requests). */
+export async function listFollowRequests(): Promise<PersonSummary[]> {
+  return call<PersonSummary[]>('list_follow_requests', {});
+}
+
+export async function decideFollowRequest(userId: string, accept: boolean): Promise<void> {
+  await call('decide_follow_request', { p_user_id: userId, p_accept: accept });
+}
+
+/** Blocking removes follows both ways and hides each account's content from the other. Unblocking doesn't refollow. */
+export async function setBlock(userId: string, block: boolean): Promise<void> {
+  await call('set_block', { p_user_id: userId, p_block: block });
+}
+
+/** Followers-only applies to every post, older ones included, and leaves you off the public feed and global boards. */
+export async function setProfileVisibility(visibility: PostVisibility): Promise<void> {
+  await call('set_profile_visibility', { p_visibility: visibility });
 }
 
 /**

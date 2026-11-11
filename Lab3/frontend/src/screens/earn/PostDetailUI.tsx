@@ -11,7 +11,7 @@ import { AppText, Banner, Button, Chip, EmptyState, Header } from '@/shared/comp
 import { colors, radius, spacing, typography } from '@/shared/theme';
 import { pointTitle } from '@/screens/find/pointDisplay';
 import { Avatar, personName } from './Avatar';
-import { Caption, LikeButton, PostAuthor } from './PostCard';
+import { Caption, LikeButton, PostAuthor, openProfile } from './PostCard';
 import { PostPhoto } from './PostPhoto';
 import { countLabel } from './postRules';
 import { timeAgo, useNow } from './time';
@@ -375,7 +375,9 @@ export default function PostDetailUI() {
             return (
               <View key={c.id} style={styles.gap}>
                 <View style={styles.comment}>
-                  <Avatar name={name} />
+                  <Pressable onPress={() => openProfile(c.author_id)} accessibilityRole="button" accessibilityLabel={`${name}'s profile`}>
+                    <Avatar name={name} />
+                  </Pressable>
                   <View style={styles.fill}>
                     <AppText>
                       <AppText variant="bodyStrong">{name}</AppText> {c.body}

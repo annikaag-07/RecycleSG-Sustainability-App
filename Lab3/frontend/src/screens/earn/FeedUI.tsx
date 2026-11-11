@@ -30,15 +30,51 @@ const PAGE = 20;
 export default function FeedUI() {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('discover');
+  const [unread, setUnread] = useState(0);
+
+  // The bell's count: unread among the latest page, which is enough to say "something new".
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return setUnread(0);
+      api.notifications
+        .listMyNotifications(undefined, 20)
+        .then((list) => setUnread(list.filter((n) => !n.read_at).length))
+        .catch(() => undefined);
+    }, [user]),
+  );
 
   return (
     <Screen scroll>
       <Header
         title="Feed"
         trailing={
-          <Pressable onPress={() => router.push('/feed/compose')} hitSlop={12} accessibilityRole="button" accessibilityLabel="New post">
-            <Feather name="plus-square" size={24} color={colors.text} />
-          </Pressable>
+          <View style={styles.icons}>
+            {user && (
+              <Pressable onPress={() => router.push('/feed/people')} hitSlop={10} accessibilityRole="button" accessibilityLabel="Find people">
+                <Feather name="search" size={22} color={colors.text} />
+              </Pressable>
+            )}
+            {user && (
+              <Pressable
+                onPress={() => router.push('/feed/inbox')}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={unread ? `Inbox, ${unread} unread` : 'Inbox'}
+              >
+                <Feather name="bell" size={22} color={colors.text} />
+                {unread > 0 && (
+                  <View style={styles.badge}>
+                    <AppText variant="caption" style={styles.badgeText}>
+                      {unread > 9 ? '9+' : unread}
+                    </AppText>
+                  </View>
+                )}
+              </Pressable>
+            )}
+            <Pressable onPress={() => router.push('/feed/compose')} hitSlop={10} accessibilityRole="button" accessibilityLabel="New post">
+              <Feather name="plus-square" size={22} color={colors.text} />
+            </Pressable>
+          </View>
         }
       />
       <View style={styles.tabs}>
@@ -195,9 +231,10 @@ function PostFeed({ feed, onBrowseDiscover }: { feed: FeedKind; onBrowseDiscover
           <EmptyState
             icon="users"
             title="No posts from people you follow"
-            message="Open a post in Discover and follow its author to see what they're recycling here."
+            message="Follow people from their posts in Discover, or search for them by name, to see what they're recycling here."
           >
             <Button label="Browse Discover" variant="secondary" onPress={onBrowseDiscover} />
+            <Button label="Find people" icon="search" variant="secondary" onPress={() => router.push('/feed/people')} />
           </EmptyState>
         ) : (
           <EmptyState icon="image" title="No posts yet" message="Share a photo of your recycling and it shows up here for everyone.">
@@ -340,6 +377,20 @@ const styles = StyleSheet.create({
   center: { textAlign: 'center' },
   centered: { paddingVertical: spacing.xxl, alignItems: 'center', justifyContent: 'center' },
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  icons: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.danger,
+  },
+  badgeText: { color: '#FFFFFF', letterSpacing: 0 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

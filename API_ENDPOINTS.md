@@ -215,6 +215,10 @@ review, gamification config and moderation have no API.
 
 ---
 
+## Backend implementation updates
+
+The point-report submission and admin review RPCs are implemented on the Lab 5 backend branch. See [current contracts and deployment status](BACKEND_IMPLEMENTATION.md#point-report-endpoints). The baseline inventory below describes main at b25a0b4.
+
 ## Proposed endpoints (frontend is already wired to these)
 
 These contracts are called through `src/shared/api/proposed.ts`. **Only the admin milestone-list RPC below

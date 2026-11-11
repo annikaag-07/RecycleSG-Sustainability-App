@@ -52,6 +52,25 @@ test('backend migrations and authenticated RPC contracts', async (t) => {
     const plastic = (await one("SELECT id FROM material_types WHERE name='Plastic'")).id;
     const quest = (await one("SELECT id FROM quests WHERE quest_type='one_time' ORDER BY id LIMIT 1")).id;
     await asUser(a);
+    await t.test('point reports support owner-scoped retry and single admin review', async () => {
+      const submit = `SELECT submit_point_report(1,'full',null,'${request}') AS id`;
+      const { id } = await one(submit);
+      assert.deepEqual(await one(submit), { id });
+      await rejects(`SELECT submit_point_report(1,'wrong_info',null,'${request}')`, /different report/);
+      await rejects('SELECT * FROM admin_list_point_reports()', /Administrator required/);
+      await rejects(`SELECT admin_review_point_report(${id},'Resolved',null)`, /Administrator required/);
+      await rejects('SELECT * FROM point_reports', /permission denied/);
+      await asUser(b);
+      assert.notEqual((await one(submit)).id, id);
+      await db.exec(`RESET ROLE; INSERT INTO app_admins(user_id) VALUES('${b}')`);
+      await asUser(b);
+      assert.equal((await rows('SELECT * FROM admin_list_point_reports()')).length, 2);
+      assert.equal((await one(`SELECT admin_review_point_report(${id},'Resolved','Emptied') AS status`)).status, 'Resolved');
+      await rejects(`SELECT admin_review_point_report(${id},'Dismissed',null)`, /No pending report/);
+      assert.equal((await rows('SELECT * FROM admin_list_point_reports()')).length, 1);
+      await db.exec(`RESET ROLE; DELETE FROM app_admins WHERE user_id='${b}'`);
+      await asUser(a);
+    });
     let checkin, action;
     await t.test('public search and owned check-in', async () => {
       assert.equal((await rows("SELECT * FROM search_recycling_points_by_material('Plastic')")).length, 1);

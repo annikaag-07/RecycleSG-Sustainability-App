@@ -14,6 +14,29 @@ Maintained API reference, updated 2026-11-11. Source of truth: `Lab3/backend/sup
 
 The branch contains the backend implementation. See [implementation and verification](BACKEND_IMPLEMENTATION.md) for release status. The sections below also cover the existing check-in, CV, rewards and milestone contracts.
 
+### Connect the Expo app
+
+Copy [the frontend environment example](Lab3/frontend/.env.example) to `Lab3/frontend/.env` and restart Expo after changing it. The team supplied integration project ref `ihrgxedwftfzzohqpnnu`. Its deployment state is unverified. The October deployment record describes a different project.
+
+| Expo variable | Value the frontend team needs |
+|---|---|
+| `EXPO_PUBLIC_SUPABASE_URL` | `https://ihrgxedwftfzzohqpnnu.supabase.co` for the supplied integration project, or `http://127.0.0.1:54321` for a local stack on the same laptop |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | The publishable or anon key **from that same project**. The backend owner supplies it through the team configuration channel. |
+| `EXPO_PUBLIC_VERIFICATION_URL` | The FastAPI base URL reachable from the device. Local laptop web uses `http://127.0.0.1:8000`. The CV server must allow the frontend origin and use the same Supabase project. |
+
+Use the [shared Supabase client](Lab3/frontend/src/shared/api/supabase.ts). Supabase Auth supplies the session for RPCs, private media and account deletion. Obtain test logins separately. Use two confirmed members for follows, visibility and notifications, a separate admin for review, and a disposable account for deletion. The CV service-role key and Gemini key belong only on the server.
+
+### What is connected and what remains
+
+| Owner | Existing client connections | Remaining integration |
+|---|---|---|
+| UI-1, account and finder | Settings calls account deletion. Report Issue submits and replays reports under the signed-in account. | Connect point management, report resolution, open-now filtering and admin statistics. Exercise deletion on the deployed Edge Function. |
+| UI-1, administration | Admin and moderator gates use server role checks. Milestone Verification and Moderation Queue already call the decision and review wrappers. | Connect the gamification rule editor. Check both queues with real reports and separate reviewer sessions. |
+| UI-2, community | The existing verified-drop feed and global rankings have working clients. | Connect the photo composer, guest Discover, Following, post detail, comments, likes, profile privacy, blocks, search and following leaderboard. Pass `p_check_in_id` when sharing a verified drop. |
+| UI-2, progress and inbox | The existing app reads points, quests and earned badges. | Connect streaks, badge criteria, inbox and category settings. Use `estimate_recycling_reward` for previews, `get_my_level_progress` for XP thresholds and the reward ledger for actual payouts. |
+
+**Release status.** The SQL migrations, Edge Function source and API contracts are in the branch. Before a hosted demo, verify the target schema and seed, deploy any missing migrations and the Edge Function, configure Auth and reminders, and run the role-based rehearsal. Keep favourites and home location on device for the MVP. [Verification evidence](BACKEND_IMPLEMENTATION.md#local-verification-results) · [Demo checklist](docs/demo/LAB5_REHEARSAL.md)
+
 ## How the backend works
 
 Application data and accounting use **Supabase**; photo recognition and trusted verification run in the

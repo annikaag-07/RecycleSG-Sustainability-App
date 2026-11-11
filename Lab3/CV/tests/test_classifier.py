@@ -14,6 +14,16 @@ def fake(material, conf):
 
 
 class ClassifierTests(unittest.TestCase):
+    def test_provider_failure_logs_type_and_code_without_secret_message(self):
+        error = RuntimeError('provider message containing secret-key')
+        error.code = 429
+        with mock.patch.object(c, '_call_gemini', side_effect=error), self.assertLogs('classifier', level='WARNING') as captured:
+            result = c.classify_image(b'x')
+        self.assertEqual(result['status'], 'unavailable')
+        self.assertIn('RuntimeError', str(captured.output))
+        self.assertIn('429', str(captured.output))
+        self.assertNotIn('secret-key', str(captured.output) + str(result))
+
     def test_invalid_confidence_never_verifies(self):
         for confidence in [float('nan'), float('inf'), -1, 7]:
             with self.subTest(confidence=confidence), mock.patch.object(c, '_call_gemini', fake('plastic', confidence)):

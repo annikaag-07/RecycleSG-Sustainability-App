@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import {
   api,
   toApiError,
+  type ActivityImpact,
   type MaterialType,
   type Profile,
   type RecyclingAction,
@@ -42,6 +43,7 @@ export default function RewardUI() {
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [verifying, setVerifying] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState<string>();
+  const [activityImpact, setActivityImpact] = useState<ActivityImpact | null>(null);
   const attempted = useRef<number | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -84,6 +86,9 @@ export default function RewardUI() {
     try {
       const result = await api.verification.verifyActivity(actionId);
       setVerificationMessage(result.message);
+      if (result.activity_impact?.estimated_co2_saved_kg) {
+        setActivityImpact(result.activity_impact);
+      }
     } catch (e) {
       setVerificationMessage(toApiError(e).message);
     } finally {
@@ -166,6 +171,15 @@ export default function RewardUI() {
         <AppText color="textMuted" style={styles.center}>
           {what}
         </AppText>
+        {status === 'Verified' && activityImpact && activityImpact.estimated_co2_saved_kg > 0 && (
+          <View style={styles.co2Row}>
+            <Feather name="wind" size={16} color={colors.success} />
+            <AppText variant="bodyStrong" style={{ color: colors.success }}>
+              {activityImpact.estimated_co2_saved_kg} kg CO₂ saved
+            </AppText>
+            <AppText variant="caption" color="textFaint">(illustrative estimate)</AppText>
+          </View>
+        )}
       </View>
 
       {status === 'Pending' && (
@@ -245,4 +259,5 @@ const styles = StyleSheet.create({
   },
   barTrack: { height: 10, borderRadius: 5, backgroundColor: colors.surfaceRaised, overflow: 'hidden' },
   barFill: { height: '100%', backgroundColor: colors.success },
+  co2Row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
 });

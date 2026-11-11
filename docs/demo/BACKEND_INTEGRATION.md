@@ -19,7 +19,7 @@ Scope: backend/API only. Existing UI callers remain compatible; UI wiring belong
 - [x] Two-user API journey: login, other-location search, GPS check-in, private upload, real Gemini, verification, rewards, quest, impact, populated feed.
 - [x] Exercise foreign-user access, Pending/Rejected exclusion and repeated/concurrent live verification.
 - [x] Contribution retries pass isolated SQL/browser tests, including lost responses.
-- [ ] Hosted concurrent contribution check: blocked on creating/cleaning an isolated milestone (see below).
+- [x] Hosted concurrent contribution check passed on 2026-11-10 using MCP-created fixtures and authenticated API requests.
 - [x] Run database/CV regressions; record live evidence and cleanup.
 - [x] Commit tested changes and hand off this contract. No UI implementation in this work.
 
@@ -45,11 +45,27 @@ uv run --no-project --with-requirements requirements-test.txt python live_backen
 
 Normal runs retain no credentials; non-secret per-run evidence is under ignored `Lab3/CV/results/backend-<run>.json`. Do not run scripts with Python `-O`, which disables assertions.
 
-## Remaining hosted contribution check
+## Hosted contribution verification
 
-The configured project's service key receives HTTP 403 when inserting a dedicated test milestone. The connected Supabase MCP account also cannot inspect this project or run advisors. This is a **test-fixture access blocker**, not evidence that the user-facing contribution RPC is broken. No schema/privilege changes were made merely to enable testing.
+The project-specific Supabase MCP connection now works as `postgres`. On 2026-11-10, MCP created and removed an isolated milestone while `live_contribution.py` exercised the same authenticated contribution and listing RPCs used by the app. The service key still lacks direct milestone INSERT and contribution DELETE grants. Fixture management through MCP resolves that limitation.
 
-The project owner needs to provide an isolated test environment with trusted fixture creation/cleanup access, or arrange narrowly scoped creation/removal through SQL. Then run `live_backend.py` without `--skip-contribution`. It creates its own milestone, races two requests sharing a UUID, expects one contribution and balances 20 lifetime / 10 available / 20 XP, and deletes contributions before the milestone/users. Do not point it at an existing shared milestone or remove the cleanup constraints.
+The hosted test passed simultaneous duplicate requests, changed-amount UUID reuse rejection, zero-balance rejection, owner-only contribution history, target capping and retry after completion. Starting balance was 20. The duplicate 10-point request left 10 available, and a subsequent request accepted the remaining 5 needed for a 15-point milestone. Final lifetime/available/XP were 20/5/20, with exactly two contribution rows totalling 15 and status AwaitingVerification.
+
+Repeat using a two-account manifest from `live_backend.py --skip-contribution --retain-demo`, with A at 20/20/20. Through MCP, create a fresh milestone named `API acceptance <manifest.run>`, target 15, current points 0. Then run from `Lab3/CV`:
+
+```sh
+LIVE_TEST_PROJECT_REF=ihrgxedwftfzzohqpnnu uv run --no-project --with-requirements requirements-test.txt python live_contribution.py results/demo-<run>.json --milestone-id <id>
+```
+
+Delete only that milestone's test contributions and milestone through MCP, then run the manifest's reset-demo command. The focused test assumes a fresh milestone and 20 available points. Repeating a completed test requires fresh fixtures. Evidence is written to ignored `results/contribution-<run>.json`.
+
+For the successful 2026-11-10 focused run, two temporary Auth accounts were created and A's 20 points were generated with a synthetic two-item activity through the real SQL finalizer. Contribution requests used real user login tokens and hosted RPCs. All fixtures were removed and cleanup verified.
+
+## Demo dataset and current Gemini check
+
+The presentation dataset is deployed and validated on 2026-11-10. It contains fresh presenters, three background recyclers and challenge ID 6 at 90/100 Active. Setup, reset commands and evidence are in [DEMO_DATA.md](DEMO_DATA.md).
+
+The full live journey was attempted twice on 2026-11-10. The first run failed the suggestion assertion. A standalone retry recognized Plastic at confidence 1.0. The second run passed suggestion and concurrent verification, then failed the expected Rejected status for the mismatched material. Those failures did not capture enough response detail to identify the cause. Assertions now include the safe result fields for future diagnosis. Both failed runs cleaned up their records. The earlier successful full journey remains dated 2026-11-09. A fresh complete Gemini rehearsal is still required before presenting.
 
 ## Verified 2026-11-09
 
@@ -58,7 +74,7 @@ The project owner needs to provide an isolated test environment with trusted fix
 - Existing browser integration: 17 scenarios plus parent pass with fake external services, actual SQL and verification adapter.
 - Hosted public API: all 8 checks pass.
 - Real Gemini: plastic suggestion, matching verification, concurrent/repeated verification, confident mismatch and blank-image uncertainty pass.
-- Real hosted rewards, badge, quest, carbon parity, populated two-user feed and owner isolation pass. Hosted contribution concurrency remains unchecked as above.
+- Real hosted rewards, badge, quest, carbon parity, populated two-user feed and owner isolation pass. Hosted contribution concurrency was subsequently verified on 2026-11-10 as above.
 - Retain-demo and reset commands were exercised successfully; all accounts/photos created during this work were removed. Re-run the seed command when preparing rehearsal.
 
 No UI source changes. No general image-accuracy claim, measured carbon claim, physical GPS test or classroom-network guarantee. The server still performs multiple sequential network calls; a caller timeout requires refresh/retry rather than a second reward.

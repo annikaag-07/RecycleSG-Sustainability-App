@@ -1,12 +1,19 @@
 import { supabase } from './supabase';
 import { ApiError } from './errors';
 
+export type ActivityImpact = {
+  estimated_co2_saved_kg: number;
+  is_estimate: boolean;
+  basis: string;
+};
+
 export type VerificationResult = {
   activity_id: number;
   status: 'Pending' | 'Verified' | 'Rejected';
   material: string | null;
   confidence: number | null;
   message: string;
+  activity_impact: ActivityImpact | null;
 };
 
 /** Only send the user's token and activity ID. Secrets and acceptance rules live on the service. */

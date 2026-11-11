@@ -18,3 +18,4 @@ export const api = { auth, checkins, classification, community, milestones, onem
 export { supabase } from './supabase';
 export { ApiError, toApiError } from './errors';
 export * from './types';
+export type { ActivityImpact, VerificationResult } from './verification';

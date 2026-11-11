@@ -52,8 +52,9 @@ export default function DirectionsUI() {
     if (!point) return;
     setOpenError(undefined);
     try {
-      // A searched address is a valid start too; without any origin Google Maps uses the device's location.
-      await Linking.openURL(googleMapsUrl(point, mode, origin));
+      // An address search chooses where to find bins. Let Maps use the device's
+      // location for the trip to a bin found in another area.
+      await Linking.openURL(googleMapsUrl(point, mode, origin?.source === 'gps' ? origin : null));
     } catch {
       setOpenError("Couldn't open Google Maps. Copy the address instead: " + point.address);
     }
@@ -105,7 +106,9 @@ export default function DirectionsUI() {
             </AppText>
             <AppText variant="small" color="textMuted">
               {meters != null
-                ? `${formatDistance(meters)} in a straight line · about ${walkingMinutes(meters)} min walk or more`
+                ? origin?.source === 'address'
+                  ? `${formatDistance(meters)} from your searched address`
+                  : `${formatDistance(meters)} in a straight line · about ${walkingMinutes(meters)} min walk or more`
                 : 'Turn on location in Find to see how far it is.'}
             </AppText>
           </View>
@@ -115,8 +118,7 @@ export default function DirectionsUI() {
           </View>
         </View>
         <Banner tone="info">
-          Step-by-step directions aren't available in the app yet. The basemap is from OneMap; the route itself is handed
-          to Google Maps.
+          Open Google Maps for directions from your current location.
         </Banner>
         {/* NFR-SAFE-01 */}
         <Banner tone="warning">Stay on public paths and follow access rules. Don't enter restricted, private or unsafe areas.</Banner>

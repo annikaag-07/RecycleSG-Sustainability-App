@@ -1,7 +1,17 @@
 // Quests and badges. Progress only moves when the server marks a recycling activity Verified; the app just reads it.
 import { supabase } from './supabase';
-import { unwrap } from './errors';
-import type { Badge, BadgeProgress, QuestClaimResult, QuestProgress, Quest, UserBadge, VerificationStatus } from './types';
+import { ApiError, unwrap } from './errors';
+import type {
+  Badge,
+  BadgeProgress,
+  LevelProgress,
+  QuestClaimResult,
+  QuestProgress,
+  Quest,
+  RewardEstimate,
+  UserBadge,
+  VerificationStatus,
+} from './types';
 
 /** Active quests. Public. */
 export async function listQuests(): Promise<Quest[]> {
@@ -37,6 +47,25 @@ export async function listMyBadgeProgress(): Promise<BadgeProgress[]> {
  */
 export async function getMyStreak(): Promise<number> {
   return unwrap<number>(await supabase.rpc('get_my_streak')) ?? 0;
+}
+
+/** The caller's level and how far it is to the next one, under the level step an admin has set. */
+export async function getMyLevelProgress(): Promise<LevelProgress> {
+  const rows = unwrap<LevelProgress[]>(await supabase.rpc('get_my_level_progress'));
+  if (!rows[0]) throw new ApiError('Your profile could not be found.', 'P0002');
+  return rows[0];
+}
+
+/**
+ * What logging `quantity` items of a material would earn once verified, at the current rates and seasonal bonus. Pass
+ * a pending drop's `created_at` as `submittedAt`, since the bonus depends on when it was logged. Verified drops have
+ * their actual payout in reward_transactions instead.
+ */
+export async function estimateRecyclingReward(materialTypeId: number, quantity: number, submittedAt?: string): Promise<RewardEstimate> {
+  const args: Record<string, unknown> = { p_material_type_id: materialTypeId, p_quantity: quantity };
+  if (submittedAt) args.p_submitted_at = submittedAt;
+  const rows = unwrap<RewardEstimate[]>(await supabase.rpc('estimate_recycling_reward', args));
+  return rows[0]!;
 }
 
 export async function listMyBadges(): Promise<UserBadge[]> {

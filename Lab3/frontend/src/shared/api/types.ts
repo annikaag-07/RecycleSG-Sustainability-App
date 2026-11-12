@@ -238,6 +238,23 @@ export type BadgeProgress = {
   earned_at: string | null;
 };
 
+/**
+ * Returned by get_my_level_progress (reward_display_contracts migration). Levels are `xp_step` XP apart, and an admin can
+ * change the step; a level already reached is kept, so `xp` can sit below the current level's start.
+ */
+export type LevelProgress = {
+  level: number;
+  xp: number;
+  xp_step: number;
+  /** XP at which the next level starts. */
+  next_level_xp: number;
+  /** Never negative. */
+  remaining_xp: number;
+};
+
+/** Returned by estimate_recycling_reward: what a drop earns under the current rates and any seasonal bonus. */
+export type RewardEstimate = { eco_points: number; xp: number };
+
 // ---------------------------------------------------------------------------------------------
 // Posts, comments, likes and follows (social_community, social_demo_contracts migrations; Lab3/backend/SOCIAL_API.md)
 // ---------------------------------------------------------------------------------------------

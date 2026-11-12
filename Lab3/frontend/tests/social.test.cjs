@@ -225,3 +225,34 @@ test('UI-2: people, follow request, block, privacy and inbox RPCs use the contra
     { name: 'set_notification_preferences', args: { p_social: false, p_progress: true, p_streak_reminder: true } },
   ]);
 });
+
+test('UI-2: rewards and levels come from the server with the contract keys', async () => {
+  const calls = [];
+  const rpc = async (name, args) => {
+    calls.push({ name, args });
+    if (name === 'estimate_recycling_reward') return { data: [{ eco_points: 36, xp: 18 }], error: null };
+    return { data: [{ level: 3, xp: 250, xp_step: 100, next_level_xp: 300, remaining_xp: 50 }], error: null };
+  };
+  const p = load('shared/api/progress.ts', { './supabase': { supabase: { rpc } }, './errors': errors });
+  assert.deepEqual(await p.estimateRecyclingReward(4, 3), { eco_points: 36, xp: 18 });
+  await p.estimateRecyclingReward(4, 3, '2026-11-12T01:00:00Z');
+  assert.equal((await p.getMyLevelProgress()).remaining_xp, 50);
+  assert.deepEqual(calls, [
+    { name: 'estimate_recycling_reward', args: { p_material_type_id: 4, p_quantity: 3 } },
+    { name: 'estimate_recycling_reward', args: { p_material_type_id: 4, p_quantity: 3, p_submitted_at: '2026-11-12T01:00:00Z' } },
+    { name: 'get_my_level_progress', args: undefined },
+  ]);
+  const none = load('shared/api/progress.ts', { './supabase': { supabase: { rpc: async () => ({ data: [], error: null }) } }, './errors': errors });
+  await assert.rejects(none.getMyLevelProgress(), (e) => e.code === 'P0002');
+});
+
+test('UI-2: the level bar follows the admin-set step, including after it changes', () => {
+  const { levelBar } = load('screens/earn/level.ts');
+  const lp = (level, xp, step) => ({ level, xp, xp_step: step, next_level_xp: level * step, remaining_xp: Math.max(0, level * step - xp) });
+  assert.deepEqual(levelBar(lp(3, 250, 100)), { into: 50, step: 100, fraction: 0.5, text: '250 XP · 50 XP to level 4' });
+  assert.equal(levelBar(lp(2, 300, 250)).text, '300 XP · 200 XP to level 3', 'a 250 XP step');
+  // The step was raised to 500 after reaching level 3 at 250 XP: the level is kept and the bar starts empty.
+  assert.deepEqual(levelBar(lp(3, 250, 500)), { into: 0, step: 500, fraction: 0, text: '250 XP · 1250 XP to level 4' });
+  // The step was lowered to 50: already past level 4's start, so the next XP moves the level up.
+  assert.deepEqual(levelBar(lp(3, 250, 50)), { into: 50, step: 50, fraction: 1, text: '250 XP · level 4 with your next XP' });
+});

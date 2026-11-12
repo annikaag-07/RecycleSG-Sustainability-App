@@ -13,7 +13,7 @@ import { colors, radius, spacing } from '@/shared/theme';
 import { PointTypeTile } from '@/screens/find/PointBits';
 import { pointTitle } from '@/screens/find/pointDisplay';
 import { dropGuidance } from './guidance';
-import { LOG_WINDOW_MIN, MAX_QUANTITY, POINTS_PER_ITEM, logDeadline } from './rules';
+import { LOG_WINDOW_MIN, MAX_QUANTITY, logDeadline } from './rules';
 import { clockTime, useNow } from './time';
 
 type Load =
@@ -27,6 +27,8 @@ type Photo = { uri: string; base64: string; mimeType: string };
 const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.6, base64: true, exif: false };
 // The camera isn't reliably available in a browser, so web picks a file (which a phone browser can take with the camera).
 const HAS_CAMERA = Platform.OS !== 'web';
+/** Wait for the quantity to settle before asking the server what it's worth. */
+const ESTIMATE_DEBOUNCE_MS = 250;
 
 /** UC 3.2 steps 1–7: what went in the bin, how many, and what it will earn once verified. */
 export default function LogRecyclingUI() {
@@ -68,6 +70,25 @@ export default function LogRecyclingUI() {
     fetchData();
   }, [fetchData]);
 
+  // UC 3.2 step 6: what this drop would earn at the rates and seasonal bonus an admin has set right now.
+  const [estimate, setEstimate] = useState<{ key: string; points: number }>();
+  useEffect(() => {
+    if (materialId == null || !user) return;
+    const key = `${materialId}:${quantity}`;
+    let current = true;
+    const t = setTimeout(() => {
+      api.progress
+        .estimateRecyclingReward(materialId, quantity)
+        .then((r) => current && setEstimate({ key, points: r.eco_points }))
+        // Without an estimate the button just leaves the number out; the server still decides the reward.
+        .catch(() => undefined);
+    }, ESTIMATE_DEBOUNCE_MS);
+    return () => {
+      current = false;
+      clearTimeout(t);
+    };
+  }, [materialId, quantity, user]);
+
   if (load.kind === 'loading') {
     return (
       <Screen>
@@ -107,7 +128,8 @@ export default function LogRecyclingUI() {
   const loggedIds = new Set(logged.map((a) => a.material_type_id));
   const material = point.materials.find((m) => m.id === materialId && !loggedIds.has(m.id));
   const guidance = material && dropGuidance(material.name);
-  const points = quantity * POINTS_PER_ITEM;
+  // Only show a number that matches what's selected now, not one still on its way for the previous quantity.
+  const points = estimate?.key === `${materialId}:${quantity}` ? estimate.points : undefined;
 
   const analysePhoto = async (selectedPhoto: Photo) => {
     recognitionRequest.current?.abort();
@@ -361,7 +383,7 @@ export default function LogRecyclingUI() {
                 ? 'Choose what you put in'
                 : !photo
                   ? 'Add a photo to log this'
-                  : `Log ${quantity} ${material.name.toLowerCase()} item${quantity === 1 ? '' : 's'} · ${points} points`
+                  : `Log ${quantity} ${material.name.toLowerCase()} item${quantity === 1 ? '' : 's'}${points != null ? ` · ${points} points` : ''}`
             }
             disabled={!material || !photo}
             loading={submitting}

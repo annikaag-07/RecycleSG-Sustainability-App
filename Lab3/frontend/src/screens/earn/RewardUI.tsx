@@ -7,9 +7,10 @@ import {
   api,
   toApiError,
   type ActivityImpact,
+  type LevelProgress,
   type MaterialType,
-  type Profile,
   type RecyclingAction,
+  type RewardEstimate,
   type RewardTransaction,
 } from '@/shared/api';
 import { useAuth } from '@/shared/auth/AuthProvider';
@@ -17,7 +18,8 @@ import { AppText, Banner, Button, Card, EmptyState, Header, Screen } from '@/sha
 import { materialMeta } from '@/shared/materials';
 import { colors, radius, spacing } from '@/shared/theme';
 import { pointTitle } from '@/screens/find/pointDisplay';
-import { POINTS_PER_ITEM, XP_PER_LEVEL, logDeadline } from './rules';
+import { levelBar } from './level';
+import { logDeadline } from './rules';
 import { useNow } from './time';
 
 type Data = {
@@ -28,8 +30,10 @@ type Data = {
   /** Materials this point accepts that haven't been logged on this check-in yet (UC 3.2.AC.2). */
   unlogged: MaterialType[];
   checkInAt: string | null;
-  profile: Profile;
+  level: LevelProgress;
   reward: RewardTransaction | null;
+  /** What a drop without a reward row yet will earn, at today's rates. Null if it couldn't be worked out. */
+  estimate: RewardEstimate | null;
 };
 
 type Load = { kind: 'loading' } | { kind: 'notFound' } | { kind: 'error'; message: string } | ({ kind: 'ready' } & Data);
@@ -51,9 +55,9 @@ export default function RewardUI() {
     if (!Number.isInteger(actionId)) return setLoad({ kind: 'notFound' });
     setLoad({ kind: 'loading' });
     try {
-      const [actions, profile, reward, checkIns, materials] = await Promise.all([
+      const [actions, level, reward, checkIns, materials] = await Promise.all([
         api.checkins.listMyRecyclingActions(50),
-        api.profile.getMyProfile(user.id),
+        api.progress.getMyLevelProgress(),
         api.checkins.getRewardForAction(actionId),
         api.checkins.listMyCheckIns(20),
         api.points.listMaterialTypes(),
@@ -61,7 +65,11 @@ export default function RewardUI() {
       const action = actions.find((a) => a.id === actionId);
       if (!action) return setLoad({ kind: 'notFound' });
       const checkIn = checkIns.find((c) => c.id === action.check_in_id);
-      const point = checkIn ? await api.points.getPointDetail(checkIn.recycling_point_id).catch(() => null) : null;
+      const [point, estimate] = await Promise.all([
+        checkIn ? api.points.getPointDetail(checkIn.recycling_point_id).catch(() => null) : null,
+        // The seasonal bonus depends on when the drop was logged, so pass that rather than now.
+        reward ? null : api.progress.estimateRecyclingReward(action.material_type_id, action.quantity, action.created_at).catch(() => null),
+      ]);
       const loggedHere = new Set(actions.filter((a) => a.check_in_id === action.check_in_id).map((a) => a.material_type_id));
       setLoad({
         kind: 'ready',
@@ -70,8 +78,9 @@ export default function RewardUI() {
         placeTitle: point ? pointTitle(point.name, point.address).title : null,
         unlogged: point ? point.materials.filter((m) => !loggedHere.has(m.id)) : [],
         checkInAt: checkIn?.checked_in_at ?? null,
-        profile,
+        level,
         reward,
+        estimate,
       });
     } catch (e) {
       setLoad({ kind: 'error', message: toApiError(e).message });
@@ -147,14 +156,14 @@ export default function RewardUI() {
     );
   }
 
-  const { action, materialName, placeTitle, unlogged, checkInAt, profile, reward } = load;
+  const { action, materialName, placeTitle, unlogged, checkInAt, level, reward, estimate } = load;
   const status = action.verification_status;
   const meta = materialMeta(materialName);
-  // Verified rewards come from reward_transactions; before that, show what the server's rule will award.
-  const points = reward?.eco_points_earned ?? action.quantity * POINTS_PER_ITEM;
-  const xp = reward?.xp_earned ?? action.quantity * POINTS_PER_ITEM;
+  // Verified rewards come from reward_transactions; before that, the server's estimate at the current rates.
+  const points = reward?.eco_points_earned ?? estimate?.eco_points;
+  const xp = reward?.xp_earned ?? estimate?.xp;
   const what = `${action.quantity} ${materialName.toLowerCase()} item${action.quantity === 1 ? '' : 's'}${placeTitle ? ` at ${placeTitle}` : ''}`;
-  const xpInto = profile.xp % XP_PER_LEVEL;
+  const bar = levelBar(level);
   const canLogAnother = unlogged.length > 0 && !!checkInAt && now < logDeadline(checkInAt);
 
   return (
@@ -166,7 +175,13 @@ export default function RewardUI() {
           <MaterialCommunityIcons name={meta.icon} size={44} color={colors.text} />
         </View>
         <AppText variant="title" accessibilityRole="header" style={styles.center}>
-          {status === 'Verified' ? `+${points} Eco Points` : status === 'Rejected' ? 'Couldn’t be verified' : 'Recycling logged'}
+          {status === 'Verified'
+            ? points != null
+              ? `+${points} Eco Points`
+              : 'Recycling verified'
+            : status === 'Rejected'
+              ? 'Couldn’t be verified'
+              : 'Recycling logged'}
         </AppText>
         <AppText color="textMuted" style={styles.center}>
           {what}
@@ -185,11 +200,10 @@ export default function RewardUI() {
       {status === 'Pending' && (
         // UC 3.2: points aren't shown as earned until verified. Crediting them and taking them back is worse than waiting.
         <Card label="Waiting for verification">
-          <AppText variant="heading">
-            {points} Eco Points · {xp} XP
-          </AppText>
+          <AppText variant="heading">{points != null ? `${points} Eco Points · ${xp} XP` : 'Eco Points and XP'}</AppText>
           <AppText color="textMuted">
-            These are added once the drop is verified. Until then they don't count towards your balance, level, quests or badges.
+            These are added once the drop is verified, at the rates set then. Until then they don't count towards your balance,
+            level, quests or badges.
             You'll see them here and on the You tab when it's done.
           </AppText>
           <AppText variant="small" color="textFaint">
@@ -209,18 +223,18 @@ export default function RewardUI() {
         </Banner>
       )}
 
-      <Card label={`Level ${profile.level}`}>
+      <Card label={`Level ${level.level}`}>
         <View
           style={styles.barTrack}
           accessibilityRole="progressbar"
           accessibilityLabel="Progress to next level"
-          accessibilityValue={{ min: 0, max: XP_PER_LEVEL, now: xpInto }}
+          accessibilityValue={{ min: 0, max: bar.step, now: bar.into }}
         >
-          <View style={[styles.barFill, { width: `${(xpInto / XP_PER_LEVEL) * 100}%` }]} />
+          <View style={[styles.barFill, { width: `${bar.fraction * 100}%` }]} />
         </View>
         <AppText variant="small" color="textMuted">
-          {profile.xp} XP · {XP_PER_LEVEL - xpInto} XP to level {profile.level + 1}
-          {status === 'Pending' ? ` · +${xp} XP once verified` : ''}
+          {bar.text}
+          {status === 'Pending' && xp != null ? ` · +${xp} XP once verified` : ''}
         </AppText>
         {/* UC 3.2 step 10. */}
         <AppText variant="small" color="textFaint">

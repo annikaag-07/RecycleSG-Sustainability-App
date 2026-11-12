@@ -1,6 +1,7 @@
-// Copies of the server's check-in, reward and quest rules (Lab3/backend/supabase/migrations, feature/backend @ 4e661f0).
+// Copies of the server's check-in and quest rules (Lab3/backend/supabase/migrations, feature/backend @ 4e661f0).
 // The server enforces all of them; the app only uses them to explain a limit before the user runs into it.
-// The SRS has these set by an administrator — once the backend exposes them, read them from there instead.
+// Rewards and levels aren't copied here: an admin sets them, so screens read them from estimate_recycling_reward and
+// get_my_level_progress.
 
 import type { QuestType } from '@/shared/api';
 
@@ -14,9 +15,6 @@ export const DAILY_CHECK_IN_LIMIT = 10;
 export const LOG_WINDOW_MIN = 15;
 /** submit_recycling_activity: quantity must be 1–100. */
 export const MAX_QUANTITY = 100;
-/** award_verified_recycling: 10 Eco Points and 10 XP per item, level = 1 + floor(xp / 100). */
-export const POINTS_PER_ITEM = 10;
-export const XP_PER_LEVEL = 100;
 
 const MINUTE = 60_000;
 

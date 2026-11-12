@@ -12,6 +12,7 @@ UI-2 uses these calls for social profiles, leaderboards, the post composer, feed
 | `set_follow(p_user_id, p_follow)` | Returns `accepted`, `pending`, or `none`. A public follow takes effect immediately. A private profile owner approves it. Passing false withdraws a request or unfollows. |
 | `list_follow_requests()` | Pending incoming requests with `user_id, username, display_name`. |
 | `decide_follow_request(p_user_id, p_accept)` | Void. Only the recipient can decide their incoming request. |
+| `list_my_blocks()` | Settings → Blocked accounts. Returns the signed-in caller’s outgoing blocks as `{user_id, username, display_name}` rows in display-name order, or `[]`. Pass the selected `user_id` to `set_block(p_user_id, false)` and refresh after success. |
 | `set_block(p_user_id, p_block)` | Void. Blocking removes follows in both directions and hides the two accounts' content from one another. Unblocking leaves both unfollowed. |
 | `get_following_leaderboard(p_period='all_time', p_limit=20)` | Own account and accepted follows with positive scores. Each row has `rank, user_id, username, display_name, level, eco_points`. Use `weekly` for recycling points since Monday at 00:00 Singapore time. |
 

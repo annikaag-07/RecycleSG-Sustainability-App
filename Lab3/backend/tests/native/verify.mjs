@@ -162,6 +162,13 @@ try {
   const blocked = await rpc("set_block", { p_user_id: a, p_block: true }, b);
   assert.ok(blocked.status >= 200 && blocked.status < 300);
   assert.deepEqual((await rpc("list_posts", { p_post_id: post.data })).data, []);
+  const blockList = await rpc("list_my_blocks", {}, b);
+  assert.equal(blockList.status, 200);
+  assert.deepEqual(blockList.data.map(row => row.user_id), [a]);
+  assert.deepEqual(await rpc("list_my_blocks", {}), { status: 200, data: [] });
+  assert.equal((await rpc("list_my_blocks", {}, null)).status, 401);
+  await rpc("set_block", { p_user_id: blockList.data[0].user_id, p_block: false }, b);
+  assert.deepEqual(await rpc("list_my_blocks", {}, b), { status: 200, data: [] });
   console.log(
     "HTTP passed: social and progress reads, following feed, likes, blocks, admin stats and gamification rules",
   );

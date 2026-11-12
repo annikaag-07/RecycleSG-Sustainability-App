@@ -3,14 +3,13 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
-import { api, toApiError, type EnvironmentalImpact, type Profile, type RecyclingAction } from '@/shared/api';
+import { api, toApiError, type EnvironmentalImpact, type LevelProgress, type Profile, type RecyclingAction } from '@/shared/api';
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, EmptyState, Header, Screen, TextField } from '@/shared/components';
 import { colors, radius, spacing } from '@/shared/theme';
+import { levelBar } from '@/screens/earn/level';
 import { LogoutButton } from './LogoutButton';
 
-/** Backend reward trigger: level = 1 + floor(xp / 100) (20261014090646_gamification_rewards.sql). */
-const XP_PER_LEVEL = 100;
 /** handle_new_user() trigger: 'user_' || uuid without dashes. */
 const AUTO_USERNAME = /^user_[0-9a-f]{32}$/;
 
@@ -22,6 +21,8 @@ type Data = {
   badgesEarned: number;
   /** Null if it couldn't be loaded; the rest of the profile still shows. */
   streak: number | null;
+  /** Null if it couldn't be loaded; the card then shows XP without the bar. */
+  level: LevelProgress | null;
 };
 
 /** You tab (UC 6.1 step 1, REQ-2.1, REQ-2.5). */
@@ -35,15 +36,17 @@ export default function ProfileUI() {
     if (!user) return;
     setError(undefined);
     try {
-      const [profile, impact, actions, checkIns, badges, streak] = await Promise.all([
+      const [profile, impact, actions, checkIns, badges, streak, level] = await Promise.all([
         api.profile.getMyProfile(user.id),
         api.profile.getMyEnvironmentalImpact(user.id),
         api.checkins.listMyRecyclingActions(200),
         api.checkins.listMyCheckIns(1000),
         api.progress.listMyBadges(),
         api.progress.getMyStreak().catch(() => null),
+        // The level step is set by an admin, so the bar's size comes from the server.
+        api.progress.getMyLevelProgress().catch(() => null),
       ]);
-      setData({ profile, impact, actions, pointsVisited: new Set(checkIns.map((c) => c.recycling_point_id)).size, badgesEarned: badges.length, streak });
+      setData({ profile, impact, actions, pointsVisited: new Set(checkIns.map((c) => c.recycling_point_id)).size, badgesEarned: badges.length, streak, level });
     } catch (e) {
       setError(toApiError(e).message);
     }
@@ -99,9 +102,9 @@ export default function ProfileUI() {
     );
   }
 
-  const { profile, impact, actions, pointsVisited, streak } = data;
+  const { profile, impact, actions, pointsVisited, streak, level } = data;
   const name = profile.display_name || profile.username;
-  const xpInto = profile.xp % XP_PER_LEVEL;
+  const bar = level && levelBar(level);
   const pending = actions.filter((a) => a.verification_status === 'Pending');
 
   if (editing) {
@@ -130,16 +133,18 @@ export default function ProfileUI() {
       {profile.bio ? <AppText color="textMuted">{profile.bio}</AppText> : null}
 
       <Card label={`Level ${profile.level}`}>
-        <View
-          style={styles.barTrack}
-          accessibilityRole="progressbar"
-          accessibilityLabel="Progress to next level"
-          accessibilityValue={{ min: 0, max: XP_PER_LEVEL, now: xpInto }}
-        >
-          <View style={[styles.barFill, { width: `${(xpInto / XP_PER_LEVEL) * 100}%` }]} />
-        </View>
+        {bar && (
+          <View
+            style={styles.barTrack}
+            accessibilityRole="progressbar"
+            accessibilityLabel="Progress to next level"
+            accessibilityValue={{ min: 0, max: bar.step, now: bar.into }}
+          >
+            <View style={[styles.barFill, { width: `${bar.fraction * 100}%` }]} />
+          </View>
+        )}
         <AppText variant="small" color="textMuted">
-          {profile.xp} XP · {XP_PER_LEVEL - xpInto} XP to level {profile.level + 1}
+          {bar ? bar.text : `${profile.xp} XP`}
         </AppText>
       </Card>
 

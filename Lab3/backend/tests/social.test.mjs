@@ -195,3 +195,31 @@ test('reward sharing attaches only the caller’s verified check-in and its awar
   await rows("select edit_post($1,'Edited',array[]::text[],$2,'public')",[id,point]);
   assert.ok((await rows('select edited_at from list_posts(p_post_id=>$1)',[id]))[0].edited_at);
 });
+
+test('Settings lists only outgoing blocks and can unblock a hidden account', async t => {
+  const { db, a, b, asUser } = await fixture();
+  t.after(() => db.close());
+  const c = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const rows = async (sql, args = []) => (await db.query(sql, args)).rows;
+  const list = () => rows('select * from list_my_blocks()');
+  await db.query('insert into auth.users(id,email_confirmed_at) values($1,now())', [c]);
+  await db.query("update profiles set display_name='Zoe',username='zoe' where id=$1", [b]);
+  await db.query("update profiles set display_name='Alice',username='alice' where id=$1", [c]);
+  await asUser(a);
+  await rows('select set_block($1,true), set_block($2,true)', [b,c]);
+  assert.deepEqual(await rows('select * from get_social_profile($1)', [b]), []);
+  assert.deepEqual(await rows("select * from find_social_profiles('zoe')"), []);
+  const blocked = await list();
+  assert.deepEqual(blocked, [
+    { user_id: c, username: 'alice', display_name: 'Alice' },
+    { user_id: b, username: 'zoe', display_name: 'Zoe' },
+  ]);
+  await asUser(b);
+  assert.deepEqual(await list(), []);
+  await asUser(a);
+  await rows('select set_block($1,false)', [blocked[1].user_id]);
+  assert.deepEqual(await list(), [blocked[0]]);
+  assert.equal((await rows('select user_id from get_social_profile($1)', [b]))[0].user_id, b);
+  await db.exec('reset role; set role anon');
+  await assert.rejects(list(), { code: '42501' });
+});

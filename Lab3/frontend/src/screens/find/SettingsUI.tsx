@@ -9,6 +9,7 @@ import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, Header, Screen, TextField } from '@/shared/components';
 import { getLocationPermission, openAppSettings, requestLocationPermission, type PermissionInfo } from '@/shared/location';
 import { colors, radius, spacing } from '@/shared/theme';
+import { BlockedAccounts } from '@/screens/earn/BlockedAccounts';
 import { LogoutButton } from './LogoutButton';
 import { titleCase } from './pointDisplay';
 import {
@@ -199,6 +200,9 @@ function PrivacySection({ uid }: { uid: string }) {
           ? 'Only people you approve see your posts and verified drops, older ones included. You’re left off the public feed and global leaderboards, and new followers send a request.'
           : 'Anyone can see your posts and verified drops, and follow you without asking.'}
       </AppText>
+
+      <View style={styles.divider} />
+      <BlockedAccounts />
 
       <View style={styles.divider} />
       <AppText variant="bodyStrong">Home location</AppText>

@@ -2,7 +2,7 @@
 import type { LatLng, NearbyRecyclingPoint, PointStatus } from '@/shared/api/types';
 import type { PointExtras } from '@/shared/api/points';
 import { distanceMeters } from '@/shared/geo';
-import { openState, type OpenState } from '@/shared/hours';
+import { openState, openStateFromServer, type OpenState } from '@/shared/hours';
 import { pointStream, type Stream } from '@/shared/materials';
 
 export type PointView = {
@@ -36,7 +36,16 @@ export function pointTitle(name: string, address: string): { title: string; subt
   return { title: name, subtitle: titleCase(address) };
 }
 
-export function toPointView(p: NearbyRecyclingPoint, extras: PointExtras | undefined, origin: LatLng): PointView {
+/**
+ * `is_open` (from find_recycling_points) is the server's answer for *now*; a cached row's value is stale, so pass
+ * `fresh: false` for offline data and only the hours text is used.
+ */
+export function toPointView(
+  p: NearbyRecyclingPoint & { is_open?: boolean | null },
+  extras: PointExtras | undefined,
+  origin: LatLng,
+  { fresh = true }: { fresh?: boolean } = {},
+): PointView {
   const materials = extras?.materials ?? [];
   return {
     id: p.id,
@@ -49,7 +58,10 @@ export function toPointView(p: NearbyRecyclingPoint, extras: PointExtras | undef
     distanceM: distanceMeters(origin, p),
     materials,
     stream: pointStream(materials),
-    open: openState(extras?.operatingHours),
+    open:
+      fresh && p.is_open !== undefined
+        ? openStateFromServer(p.is_open, extras?.operatingHours)
+        : openState(extras?.operatingHours),
   };
 }
 

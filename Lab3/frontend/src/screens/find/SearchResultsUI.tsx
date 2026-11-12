@@ -105,7 +105,7 @@ function ItemResults({
     setLoad({ kind: 'loading' });
     try {
       if (origin) {
-        const nearby = await api.points.searchNearby(origin, ITEM_RADIUS_KM, ITEM_LIMIT);
+        const nearby = await api.points.findPoints(origin, ITEM_RADIUS_KM, ITEM_LIMIT);
         const extras = await api.points.getPointExtras(nearby.map((p) => p.id));
         const views = nearby.map((p) => toPointView(p, extras.get(p.id), origin)).sort((a, b) => a.distanceM - b.distanceM);
         const accepting = views.filter((p) => p.materials.includes(match.material));
@@ -210,27 +210,29 @@ function NearestList({ origin }: { origin: Origin | null }) {
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [points, setPoints] = useState<PointView[]>([]);
 
+  // REQ-3.5: "Open now" asks the server, which filters on each point's schedule before the limit.
+  const openOnly = filter === 'openNow';
+
   const run = useCallback(async () => {
     if (!origin) return;
     setLoad({ kind: 'loading' });
     try {
-      const nearby = await api.points.searchNearby(origin, NEAREST_RADIUS_KM, NEAREST_LIMIT);
+      const nearby = await api.points.findPoints(origin, NEAREST_RADIUS_KM, NEAREST_LIMIT, openOnly);
       const extras = await api.points.getPointExtras(nearby.map((p) => p.id));
       setPoints(nearby.map((p) => toPointView(p, extras.get(p.id), origin)).sort((a, b) => a.distanceM - b.distanceM));
       setLoad({ kind: 'ready' });
     } catch (e) {
       setLoad({ kind: 'error', message: toApiError(e).message });
     }
-  }, [origin?.latitude, origin?.longitude]);
+  }, [origin?.latitude, origin?.longitude, openOnly]);
 
   useEffect(() => {
     run();
   }, [run]);
 
   const sections = useMemo(() => {
-    const visible = points.filter((p) =>
-      filter === 'all' ? true : filter === 'openNow' ? p.open.kind === 'open' : p.stream === filter,
-    );
+    // Open-now filtering already happened on the server; the chips only split by bin type.
+    const visible = points.filter((p) => (filter === 'blueBin' || filter === 'eWaste' ? p.stream === filter : true));
     return (['blueBin', 'eWaste', 'other'] as Stream[])
       .map((s) => ({ stream: s, items: visible.filter((p) => p.stream === s) }))
       .filter((s) => s.items.length > 0);
@@ -263,14 +265,18 @@ function NearestList({ origin }: { origin: Origin | null }) {
       )}
       {load.kind === 'error' && <ErrorState message={load.message} onRetry={run} />}
       {load.kind === 'ready' && points.length === 0 && (
-        <EmptyState icon="map-pin" title={`No recycling points within ${NEAREST_RADIUS_KM} km`} message="Try searching for the item you want to recycle." />
+        <EmptyState
+          icon="map-pin"
+          title={openOnly ? `No points open right now within ${NEAREST_RADIUS_KM} km` : `No recycling points within ${NEAREST_RADIUS_KM} km`}
+          message={
+            openOnly
+              ? 'Only points with published hours can be confirmed open. Switch to All to see every nearby point.'
+              : 'Try searching for the item you want to recycle.'
+          }
+        />
       )}
       {load.kind === 'ready' && points.length > 0 && sections.length === 0 && (
-        <Banner tone="info">
-          {filter === 'openNow'
-            ? "Opening hours aren't listed for these points yet, so none can be confirmed as open now."
-            : 'No nearby points of this type.'}
-        </Banner>
+        <Banner tone="info">No nearby points of this type.</Banner>
       )}
       {sections.map((s) => (
         <View key={s.stream} style={styles.section}>

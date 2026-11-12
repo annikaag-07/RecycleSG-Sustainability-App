@@ -43,7 +43,7 @@ export function DistanceLabel({ meters, here }: { meters: number | null; here?: 
 /** One row in a results list (mockup "Take it to" / "Nearest points"). */
 export function PointRow({ point, showDistance, onPress }: { point: PointView; showDistance: boolean; onPress: () => void }) {
   const materials = point.materials.length ? point.materials.join(' · ') : 'Accepted materials not listed';
-  const hours = point.open.kind === 'open' && !point.open.closesAt ? ' · always open' : '';
+  const hours = point.open.kind === 'open' ? ` · ${point.open.always ? 'always open' : 'open now'}` : '';
   return (
     <Pressable
       onPress={onPress}

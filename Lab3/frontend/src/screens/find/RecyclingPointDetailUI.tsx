@@ -3,11 +3,12 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
-import { api, toApiError, type MaterialType, type RecyclingPointDetail } from '@/shared/api';
+import { api, toApiError, type MaterialType } from '@/shared/api';
+import type { PointDetailWithSchedule } from '@/shared/api/points';
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, Chip, EmptyState, Header, Screen } from '@/shared/components';
 import { distanceMeters } from '@/shared/geo';
-import { openLabel, openState } from '@/shared/hours';
+import { formatWeeklyHours, openLabel, openState, openStateFromServer } from '@/shared/hours';
 import { pointStream } from '@/shared/materials';
 import { colors, spacing } from '@/shared/theme';
 import { isFavourite, toggleFavourite } from './favourites';
@@ -19,7 +20,8 @@ import { useOrigin, withOrigin, type OriginParams } from './useOrigin';
 type Params = OriginParams & { id: string };
 type Load =
   | { kind: 'loading' }
-  | { kind: 'ready'; point: RecyclingPointDetail; cachedAt?: Date }
+  /** `isOpen` is the server's answer for now (undefined if that call failed or the data is cached). */
+  | { kind: 'ready'; point: PointDetailWithSchedule; cachedAt?: Date; isOpen?: boolean | null }
   | { kind: 'notFound' }
   | { kind: 'error'; message: string };
 
@@ -41,9 +43,14 @@ export default function RecyclingPointDetailUI() {
     }
     setLoad({ kind: 'loading' });
     try {
-      const [point, materials] = await Promise.all([api.points.getPointDetail(id), api.points.listMaterialTypes()]);
+      const [point, materials, isOpen] = await Promise.all([
+        api.points.getPointDetail(id),
+        api.points.listMaterialTypes(),
+        // Optional extra: if it fails the screen falls back to the hours text instead of failing.
+        api.points.isOpenNow(id).catch(() => undefined),
+      ]);
       setAllMaterials(materials);
-      setLoad({ kind: 'ready', point });
+      setLoad({ kind: 'ready', point, isOpen });
     } catch (e) {
       const err = toApiError(e);
       if (err.code === 'PGRST116') return setLoad({ kind: 'notFound' }); // .single() found no row
@@ -123,7 +130,11 @@ export default function RecyclingPointDetailUI() {
   const accepted = point.materials.map((m) => m.name);
   const notAccepted = accepted.length ? allMaterials.map((m) => m.name).filter((n) => !accepted.includes(n)) : [];
   const stream = pointStream(accepted);
-  const open = openState(point.operating_hours);
+  const open =
+    !cachedAt && load.isOpen !== undefined
+      ? openStateFromServer(load.isOpen, point.operating_hours)
+      : openState(point.operating_hours);
+  const schedule = formatWeeklyHours(point.weekly_hours);
   const distance = origin ? distanceMeters(origin, point) : null;
   const canCheckIn = !!user && isVerified && origin?.source === 'gps' && !cachedAt && !isUnavailable(point.status);
 
@@ -209,10 +220,28 @@ export default function RecyclingPointDetailUI() {
         <View style={styles.hoursRow}>
           <Feather name="clock" size={18} color={open.kind === 'open' ? colors.success : colors.textMuted} />
           <AppText color={open.kind === 'open' ? 'success' : 'textMuted'} style={styles.bold}>
-            {open.kind === 'unknown' ? 'Opening hours aren’t listed for this point' : openLabel(open)}
+            {open.kind === 'unknown'
+              ? schedule && schedule.length === 0
+                ? 'Closed all week'
+                : 'Opening hours aren’t listed for this point'
+              : openLabel(open)}
           </AppText>
         </View>
+        {schedule && schedule.length > 0 && (
+          <View accessibilityLabel={`Weekly hours: ${schedule.join('; ')}`} accessible>
+            {schedule.map((line) => (
+              <AppText key={line} color="textMuted">
+                {line}
+              </AppText>
+            ))}
+          </View>
+        )}
         {point.operating_hours && <AppText color="textMuted">{point.operating_hours}</AppText>}
+        {schedule && (
+          <AppText variant="small" color="textFaint">
+            Singapore time.
+          </AppText>
+        )}
       </Card>
 
       <View style={styles.actions}>

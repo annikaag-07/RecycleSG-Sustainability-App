@@ -6,19 +6,24 @@ import { colors, radius, spacing } from '@/shared/theme';
 import { AppText } from './AppText';
 
 type Props = {
-  icon: ComponentProps<typeof Feather>['name'];
+  icon?: ComponentProps<typeof Feather>['name'];
+  /** Shown instead of the icon tile, e.g. the logo. */
+  art?: ReactNode;
   title: string;
   message?: string;
   children?: ReactNode;
 };
 
 /** Centred icon + title + message, e.g. "Location is switched off", "You are not following anyone yet". */
-export function EmptyState({ icon, title, message, children }: Props) {
+export function EmptyState({ icon, art, title, message, children }: Props) {
   return (
     <View style={styles.wrap}>
-      <View style={styles.iconTile}>
-        <Feather name={icon} size={28} color={colors.textMuted} />
-      </View>
+      {art ??
+        (icon && (
+          <View style={styles.iconTile}>
+            <Feather name={icon} size={28} color={colors.textMuted} />
+          </View>
+        ))}
       <AppText variant="heading" style={styles.center}>
         {title}
       </AppText>

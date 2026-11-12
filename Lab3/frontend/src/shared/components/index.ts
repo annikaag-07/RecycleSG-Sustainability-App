@@ -6,6 +6,7 @@ export { Checkbox } from './Checkbox';
 export { Chip } from './Chip';
 export { EmptyState } from './EmptyState';
 export { Header } from './Header';
+export { Logo } from './Logo';
 export { PlaceholderScreen } from './PlaceholderScreen';
 export { Screen } from './Screen';
 export { TextField } from './TextField';

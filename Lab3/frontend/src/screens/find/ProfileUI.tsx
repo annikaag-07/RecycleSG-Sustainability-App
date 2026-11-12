@@ -192,6 +192,10 @@ export default function ProfileUI() {
         <Card label="Administrator tools">
           {isAdmin && <Button label="Verify environmental milestones" variant="secondary" onPress={() => router.push('/admin/milestones')} />}
           {isModerator && <Button label="Moderation queue" variant="secondary" onPress={() => router.push('/admin/moderation')} />}
+          {isAdmin && <Button label="Point reports" variant="secondary" onPress={() => router.push('/admin/reports')} />}
+          {isAdmin && <Button label="Manage recycling points" variant="secondary" onPress={() => router.push('/admin/points')} />}
+          {isAdmin && <Button label="Game rules" variant="secondary" onPress={() => router.push('/admin/rules')} />}
+          {isAdmin && <Button label="Usage statistics" variant="secondary" onPress={() => router.push('/admin/stats')} />}
         </Card>
       )}
 

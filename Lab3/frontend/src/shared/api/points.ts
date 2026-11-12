@@ -1,3 +1,5 @@
+import type { WeeklyInterval } from '@/shared/hours';
+
 import { supabase } from './supabase';
 import { unwrap } from './errors';
 import type {
@@ -36,16 +38,53 @@ export async function searchNearby(
   );
 }
 
-type PointRow = Omit<RecyclingPointDetail, 'materials'> & {
+/** A row from find_recycling_points: the nearby shape plus the server's open-now answer. */
+export type FinderPoint = NearbyRecyclingPoint & {
+  /** True/false from the point's weekly schedule in Singapore time; null when its hours are unknown. */
+  is_open: boolean | null;
+};
+
+/**
+ * find_recycling_points (FINDER_API.md) — nearest first, active points only, max limit 100.
+ * `openOnly` filters on the server *before* the limit, so a full page of open points comes back.
+ */
+export async function findPoints(
+  { latitude, longitude }: LatLng,
+  radiusKm = 1,
+  limit = 20,
+  openOnly = false,
+): Promise<FinderPoint[]> {
+  return unwrap(
+    await supabase.rpc('find_recycling_points', {
+      p_latitude: latitude,
+      p_longitude: longitude,
+      p_radius_km: radiusKm,
+      p_limit: limit,
+      p_open_only: openOnly,
+    }),
+  );
+}
+
+/** recycling_point_open_now — true, false, or null when the point's hours are unknown. */
+export async function isOpenNow(pointId: number): Promise<boolean | null> {
+  return unwrap<boolean | null>(await supabase.rpc('recycling_point_open_now', { p_point_id: pointId }));
+}
+
+export type PointDetailWithSchedule = RecyclingPointDetail & {
+  /** Weekly schedule (null = unknown). Absent when the detail came from the offline cache. */
+  weekly_hours?: WeeklyInterval[] | null;
+};
+
+type PointRow = Omit<PointDetailWithSchedule, 'materials'> & {
   recycling_point_materials: { material_types: MaterialType | null }[];
 };
 
-export async function getPointDetail(id: number): Promise<RecyclingPointDetail> {
+export async function getPointDetail(id: number): Promise<PointDetailWithSchedule> {
   const row = unwrap<PointRow>(
     await supabase
       .from('recycling_points')
       .select(
-        'id, name, address, latitude, longitude, operating_hours, status, source, last_updated, ' +
+        'id, name, address, latitude, longitude, operating_hours, weekly_hours, status, source, last_updated, ' +
           'recycling_point_materials(material_types(id, name, description))',
       )
       .eq('id', id)

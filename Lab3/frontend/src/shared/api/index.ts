@@ -1,4 +1,5 @@
 // Screens import from here: `import { api } from '@/shared/api'` then `api.points.searchNearby(...)`.
+import * as admin from './admin';
 import * as auth from './auth';
 import * as checkins from './checkins';
 import * as classification from './classification';
@@ -15,7 +16,7 @@ import * as social from './social';
 import * as verification from './verification';
 
 /** `api.proposed.*` targets endpoints the backend doesn't have yet — see API_ENDPOINTS.md. */
-export const api = { auth, checkins, classification, community, milestones, notifications, onemap, photos, points, profile, progress, proposed, social, verification };
+export const api = { admin, auth, checkins, classification, community, milestones, notifications, onemap, photos, points, profile, progress, proposed, social, verification };
 
 export { supabase } from './supabase';
 export { ApiError, toApiError } from './errors';

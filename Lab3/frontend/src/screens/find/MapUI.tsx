@@ -121,22 +121,27 @@ function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin:
   const [load, setLoad] = useState<Load>({ kind: 'idle' });
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
+  // REQ-3.5 "open now": the server filters on each point's weekly schedule (Singapore time) before the limit.
+  const openOnly = filter === 'openNow';
+
   const fetchPoints = useCallback(async () => {
     setLoad({ kind: 'loading' });
     try {
-      const nearby = await api.points.searchNearby(origin, radiusKm, MAX_POINTS);
+      const nearby = await api.points.findPoints(origin, radiusKm, MAX_POINTS, openOnly);
       const extras = await api.points.getPointExtras(nearby.map((p) => p.id));
       const views = nearby.map((p) => toPointView(p, extras.get(p.id), origin));
       setPoints(views);
       setSelectedId(views[0]?.id ?? null);
       setLoad({ kind: 'ready' });
-      saveNearby(nearby, extras);
+      // Only the unfiltered list is the "last known data" for offline use.
+      if (!openOnly) saveNearby(nearby, extras);
     } catch (e) {
       const err = toApiError(e);
       const cached = err.isNetwork ? await loadNearby() : null;
       if (cached) {
+        // A cached open/closed answer is out of date, so only the hours text is used offline.
         const views = cached.points
-          .map((p) => toPointView(p, cached.extras.get(p.id), origin))
+          .map((p) => toPointView(p, cached.extras.get(p.id), origin, { fresh: false }))
           .sort((a, b) => a.distanceM - b.distanceM);
         setPoints(views);
         setSelectedId(views[0]?.id ?? null);
@@ -145,7 +150,7 @@ function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin:
         setLoad({ kind: 'error', message: err.message });
       }
     }
-  }, [origin, radiusKm]);
+  }, [origin, radiusKm, openOnly]);
 
   useEffect(() => {
     fetchPoints();
@@ -165,7 +170,8 @@ function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin:
   }, [points, filter]);
 
   const selected = visible.find((p) => p.id === selectedId) ?? visible[0] ?? null;
-  const hoursUnknown = filter === 'openNow' && points.length > 0 && points.every((p) => p.open.kind === 'unknown');
+  // Offline, the server can't be asked, and cached hours text rarely says enough to confirm "open now".
+  const hoursUnknown = openOnly && load.kind === 'offline' && points.length > 0 && visible.length === 0;
 
   const search = () => {
     const q = query.trim();
@@ -209,7 +215,7 @@ function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin:
           </Banner>
         )}
         {hoursUnknown && (
-          <Banner tone="info">Opening hours aren't listed for these points yet, so none can be confirmed as open now.</Banner>
+          <Banner tone="info">You're offline, so we can't check which saved points are open right now.</Banner>
         )}
       </View>
 
@@ -241,17 +247,25 @@ function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin:
             <View style={styles.card}>
               <EmptyState
                 icon="map-pin"
-                title={points.length === 0 ? `No recycling points within ${radiusKm} km` : 'No points match this filter'}
+                title={
+                  openOnly && points.length === 0
+                    ? `No points open right now within ${radiusKm} km`
+                    : points.length === 0
+                      ? `No recycling points within ${radiusKm} km`
+                      : 'No points match this filter'
+                }
                 message={
-                  points.length === 0
-                    ? 'Try a wider search, or search for the item you want to recycle.'
-                    : 'Switch back to All to see every nearby point.'
+                  openOnly && points.length === 0
+                    ? "Only points with published hours can be confirmed open. Switch back to All to see every nearby point."
+                    : points.length === 0
+                      ? 'Try a wider search, or search for the item you want to recycle.'
+                      : 'Switch back to All to see every nearby point.'
                 }
               />
               {points.length === 0 && radiusKm < WIDER_RADIUS_KM && (
                 <Button label={`Search within ${WIDER_RADIUS_KM} km`} onPress={() => setRadiusKm(WIDER_RADIUS_KM)} />
               )}
-              {points.length > 0 && <Button label="Show all" variant="secondary" onPress={() => setFilter('all')} />}
+              {(points.length > 0 || openOnly) && <Button label="Show all" variant="secondary" onPress={() => setFilter('all')} />}
             </View>
           )}
           {selected && load.kind !== 'loading' && load.kind !== 'error' && (

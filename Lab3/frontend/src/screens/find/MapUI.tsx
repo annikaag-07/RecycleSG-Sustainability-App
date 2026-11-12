@@ -42,6 +42,9 @@ export default function MapUI() {
   const [permission, setPermission] = useState<'checking' | 'granted' | 'denied'>('checking');
   const [canAskAgain, setCanAskAgain] = useState(true);
   const [origin, setOrigin] = useState<Origin | null>(null);
+  // Choosing another place keeps the current one, so the user can go back to it.
+  const [choosing, setChoosing] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [locError, setLocError] = useState<string>();
   const { user } = useAuth();
   const [home, setHome] = useState<HomeLocation | null>(null);
@@ -53,20 +56,24 @@ export default function MapUI() {
 
   const locate = useCallback(async (ask: boolean) => {
     setLocError(undefined);
+    setLocating(true);
+    let granted = false;
     try {
       let p = await getLocationPermission();
       if (p.status !== 'granted' && ask && p.canAskAgain) p = await requestLocationPermission();
       setCanAskAgain(p.canAskAgain);
-      if (p.status !== 'granted') {
-        setPermission('denied');
-        return;
-      }
-      setPermission('granted');
+      granted = p.status === 'granted';
+      setPermission(granted ? 'granted' : 'denied');
+      if (!granted) return;
       const fix = await getCurrentFix();
       setOrigin({ ...fix, label: 'Near you', source: 'gps' });
+      setChoosing(false);
     } catch (e) {
-      setPermission('denied');
+      // A fix that times out indoors is not location being switched off: keep the permission as it is.
+      if (!granted) setPermission('denied');
       setLocError(toApiError(e).message);
+    } finally {
+      setLocating(false);
     }
   }, []);
 
@@ -74,21 +81,35 @@ export default function MapUI() {
     locate(true);
   }, [locate]);
 
-  if (!origin) {
-    if (permission === 'checking') return <Centered label="Finding your location…" />;
+  const choose = (o: Origin) => {
+    setOrigin(o);
+    setChoosing(false);
+    setLocError(undefined);
+  };
+
+  if (!origin || choosing) {
+    // Waiting for the first fix shows progress, not the chooser; a change of place keeps the chooser up while it locates.
+    if (permission === 'checking' || (locating && !origin)) return <Centered label="Finding your location…" />;
     return (
-      <LocationOff
+      <ChooseLocation
         locationEnabled={permission === 'granted'}
         canAskAgain={canAskAgain}
+        locating={locating}
         error={locError}
-        onTurnOn={() => (canAskAgain ? locate(true) : openAppSettings())}
-        onAddress={(a) => setOrigin({ latitude: a.latitude, longitude: a.longitude, label: shortLabel(a), source: 'address' })}
+        // Already allowed: just read the position. Otherwise ask, or send them to Settings once the OS won't ask again.
+        onCurrent={() => (permission === 'granted' || canAskAgain ? locate(true) : openAppSettings())}
+        onAddress={(a) => choose({ latitude: a.latitude, longitude: a.longitude, label: shortLabel(a), source: 'address' })}
         home={home}
-        onHome={() => home && setOrigin({ latitude: home.latitude, longitude: home.longitude, label: home.label, source: 'address' })}
+        onHome={() => home && choose({ latitude: home.latitude, longitude: home.longitude, label: home.label, source: 'address' })}
+        current={choosing ? origin : null}
+        onCancel={() => {
+          setChoosing(false);
+          setLocError(undefined);
+        }}
       />
     );
   }
-  return <NearbyMap origin={origin} onChangeOrigin={() => setOrigin(null)} />;
+  return <NearbyMap origin={origin} onChangeOrigin={() => setChoosing(true)} />;
 }
 
 function NearbyMap({ origin, onChangeOrigin }: { origin: Origin; onChangeOrigin: () => void }) {
@@ -329,25 +350,35 @@ function PointCard({
   );
 }
 
-/** UC 2.1.EX.3 / mockup "Location is switched off": discovery still works by address; check-in does not. */
-function LocationOff({
+/**
+ * Where to search from: the current location, home from Settings, or any address in Singapore. Shown when location is
+ * off (UC 2.1.EX.3 / mockup "Location is switched off": discovery still works by address; check-in does not) and when
+ * the user changes the search location, in which case Cancel keeps the place they had.
+ */
+function ChooseLocation({
   locationEnabled,
   canAskAgain,
+  locating,
   error,
-  onTurnOn,
+  onCurrent,
   onAddress,
   home,
   onHome,
+  current,
+  onCancel,
 }: {
   locationEnabled: boolean;
   canAskAgain: boolean;
+  locating: boolean;
   error?: string;
-  onTurnOn: () => void;
+  onCurrent: () => void;
   onAddress: (a: AddressResult) => void;
   home: HomeLocation | null;
   onHome: () => void;
+  /** The place being changed from, or null when there is none yet. */
+  current: Origin | null;
+  onCancel: () => void;
 }) {
-  const [searching, setSearching] = useState(false);
   const [q, setQ] = useState('');
   const [results, setResults] = useState<AddressResult[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -366,7 +397,10 @@ function LocationOff({
     }
   };
 
-  const blockedOnWeb = Platform.OS === 'web' && !canAskAgain;
+  const blockedOnWeb = Platform.OS === 'web' && !locationEnabled && !canAskAgain;
+  // A GPS origin is labelled "Near you" on the map, which doesn't read as a place name here.
+  const currentName = current && (current.source === 'gps' ? 'your current location' : current.label);
+  const currentLabel = locationEnabled ? 'Use current location' : canAskAgain || Platform.OS === 'web' ? 'Turn on location' : 'Open settings';
 
   return (
     <SafeAreaView edges={['top']} style={styles.root}>
@@ -374,52 +408,54 @@ function LocationOff({
         <AppText variant="title" accessibilityRole="header">
           Find
         </AppText>
-        {!searching ? (
-          <>
-            <EmptyState
-              icon="map-pin"
-              title={locationEnabled ? 'Choose search location' : 'Location is switched off'}
-              message="Find recycling points around your current location or another address in Singapore."
-            />
-            {error && <Banner tone="warning">{error}</Banner>}
-            {blockedOnWeb && (
-              <Banner tone="info">Location is blocked for this site. Allow it in your browser's site settings, then reload.</Banner>
-            )}
-            <Button label={locationEnabled ? 'Use current location' : canAskAgain || Platform.OS === 'web' ? 'Turn on location' : 'Open settings'} onPress={onTurnOn} />
-            {home && <Button label={`Use home: ${home.label}`} variant="secondary" onPress={onHome} />}
-            <Button label="Search by address instead" variant="secondary" onPress={() => setSearching(true)} />
-          </>
-        ) : (
-          <>
-            <TextField
-              label="Address or postal code"
-              icon="search"
-              placeholder="e.g. 560409 or Ang Mo Kio Ave 10"
-              value={q}
-              onChangeText={setQ}
-              onSubmitEditing={lookUp}
-              returnKeyType="search"
-              autoFocus
-            />
-            <Button label="Search" onPress={lookUp} loading={busy} />
-            {searchError && <Banner tone="error">{searchError}</Banner>}
-            {results?.length === 0 && <Banner tone="info">No matching address. Try a postal code.</Banner>}
-            {results?.map((r) => (
-              <Pressable
-                key={`${r.latitude},${r.longitude},${r.address}`}
-                onPress={() => onAddress(r)}
-                accessibilityRole="button"
-                style={styles.addressRow}
-              >
-                <Feather name="map-pin" size={18} color={colors.textMuted} />
-                <AppText variant="small" style={styles.fill}>
-                  {r.address}
-                </AppText>
-              </Pressable>
-            ))}
-            <Button label="Back" variant="ghost" onPress={() => setSearching(false)} />
-          </>
+        <EmptyState
+          icon="map-pin"
+          title={locationEnabled ? 'Choose search location' : 'Location is switched off'}
+          message={
+            currentName
+              ? `Searching near ${currentName}. Pick another place to search around.`
+              : 'Find recycling points around your current location or another address in Singapore.'
+          }
+        />
+        {error && <Banner tone="warning">{error}</Banner>}
+        {blockedOnWeb && (
+          <Banner tone="info">Location is blocked for this site. Allow it in your browser's site settings, then reload.</Banner>
         )}
+        <Button label={currentLabel} icon="navigation" loading={locating} onPress={onCurrent} />
+        {home && <Button label={`Use home: ${home.label}`} icon="home" variant="secondary" onPress={onHome} />}
+
+        <TextField
+          label="Or search an address or postal code"
+          icon="search"
+          placeholder="e.g. 560409 or Ang Mo Kio Ave 10"
+          value={q}
+          onChangeText={(t) => {
+            setQ(t);
+            setResults(null);
+          }}
+          onSubmitEditing={lookUp}
+          returnKeyType="search"
+          autoCorrect={false}
+        />
+        <Button label="Search" variant="secondary" onPress={lookUp} loading={busy} disabled={!q.trim()} />
+        {searchError && <Banner tone="error">{searchError}</Banner>}
+        {results?.length === 0 && <Banner tone="info">No matching address. Try a postal code.</Banner>}
+        {results?.map((r) => (
+          <Pressable
+            key={`${r.latitude},${r.longitude},${r.address}`}
+            onPress={() => onAddress(r)}
+            accessibilityRole="button"
+            accessibilityLabel={`Search near ${r.address}`}
+            style={styles.addressRow}
+          >
+            <Feather name="map-pin" size={18} color={colors.textMuted} />
+            <AppText variant="small" style={styles.fill}>
+              {r.address}
+            </AppText>
+          </Pressable>
+        ))}
+
+        {currentName && <Button label={`Keep ${currentName}`} variant="ghost" onPress={onCancel} />}
         <Banner tone="info">
           Search around any address in Singapore. Check-in uses your current GPS location.
         </Banner>

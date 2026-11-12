@@ -256,3 +256,17 @@ test('UI-2: the level bar follows the admin-set step, including after it changes
   // The step was lowered to 50: already past level 4's start, so the next XP moves the level up.
   assert.deepEqual(levelBar(lp(3, 250, 50)), { into: 50, step: 50, fraction: 1, text: '250 XP · level 4 with your next XP' });
 });
+
+test('UI-2: blocked accounts are listed and unblocked with the contract keys', async () => {
+  const calls = [];
+  const rows = [{ user_id: 'u2', username: 'user_0123456789abcdef0123456789abcdef', display_name: null }];
+  const s = social(async (name, args) => { calls.push({ name, args }); return { data: name === 'list_my_blocks' ? rows : null, error: null }; });
+  assert.deepEqual(await s.listMyBlocks(), rows);
+  await s.setBlock('u2', false);
+  assert.deepEqual(calls, [
+    { name: 'list_my_blocks', args: {} },
+    { name: 'set_block', args: { p_user_id: 'u2', p_block: false } },
+  ]);
+  const { personName } = load('screens/earn/Avatar.tsx', { 'react-native': { StyleSheet: { create: (x) => x }, View: 'View' }, 'react/jsx-runtime': { jsx: () => null }, '@/shared/components': { AppText: 'AppText' }, '@/shared/theme': { colors: {}, radius: {}, spacing: {} } });
+  assert.equal(personName(rows[0]), 'Anonymous Recycler', 'a blocked account with no display name still has a readable row');
+});

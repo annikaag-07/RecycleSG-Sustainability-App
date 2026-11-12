@@ -320,7 +320,7 @@ export type PersonSummary = {
   user_id: string;
   username: string;
   display_name: string | null;
-  /** Not returned by list_follow_requests. */
+  /** Not returned by list_follow_requests or list_my_blocks. */
   visibility?: PostVisibility;
 };
 

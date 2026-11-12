@@ -164,6 +164,11 @@ export async function decideFollowRequest(userId: string, accept: boolean): Prom
 }
 
 /** Blocking removes follows both ways and hides each account's content from the other. Unblocking doesn't refollow. */
+/** Everyone the caller has blocked, by display name. Their profiles are hidden, so this is the only way back to them. */
+export async function listMyBlocks(): Promise<PersonSummary[]> {
+  return call<PersonSummary[]>('list_my_blocks', {});
+}
+
 export async function setBlock(userId: string, block: boolean): Promise<void> {
   await call('set_block', { p_user_id: userId, p_block: block });
 }

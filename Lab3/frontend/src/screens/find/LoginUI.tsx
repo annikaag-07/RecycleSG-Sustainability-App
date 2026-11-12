@@ -6,7 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { api, toApiError } from '@/shared/api';
 import { EMAIL_LINK_EXPIRY_MINUTES, emailProblem, passwordProblem } from '@/shared/api/auth';
 import { useAuth } from '@/shared/auth/AuthProvider';
-import { AppText, Banner, Button, Header, Screen, TextField } from '@/shared/components';
+import { AppText, Banner, Button, Header, Logo, Screen, TextField } from '@/shared/components';
 import { colors, radius, spacing } from '@/shared/theme';
 
 type Notice =
@@ -116,6 +116,10 @@ function LogInForm({ initialEmail }: { initialEmail: string }) {
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Screen scroll edges={['top', 'bottom']}>
+        <View style={styles.brand}>
+          <Logo size={44} />
+          <AppText variant="heading">RecycleSG</AppText>
+        </View>
         <Header title="Log in" />
 
         <TextField
@@ -305,6 +309,7 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700', color: colors.text },
   link: { fontWeight: '700', color: colors.text, textDecorationLine: 'underline' },
   footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingTop: spacing.lg },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingTop: spacing.sm },
   notice: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 
 import { api, toApiError, type EnvironmentalImpact, type LevelProgress, type Profile, type RecyclingAction } from '@/shared/api';
 import { useAuth } from '@/shared/auth/AuthProvider';
-import { AppText, Banner, Button, Card, EmptyState, Header, Screen, TextField } from '@/shared/components';
+import { AppText, Banner, Button, Card, EmptyState, Header, Logo, Screen, TextField } from '@/shared/components';
 import { colors, radius, spacing } from '@/shared/theme';
 import { levelBar } from '@/screens/earn/level';
 import { LogoutButton } from './LogoutButton';
@@ -64,7 +64,7 @@ export default function ProfileUI() {
       <Screen>
         <Header title="You" />
         <EmptyState
-          icon="user"
+          art={<Logo size={64} />}
           title="Track your recycling"
           message="Create an account to earn Eco Points and XP, keep a streak, and see your environmental impact."
         />

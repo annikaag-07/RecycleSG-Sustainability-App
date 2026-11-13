@@ -42,11 +42,13 @@ model, which also numbers the features marked "Lab 5".
       for A, B and the admin. Sign A, B and the admin in beforehand.
 - [ ] Nick prepares and resets the data (see [demo data](DEMO_DATA.md)), plus for this script:
   - an admin account (a separate account, not A or B)
-  - one off-topic post from a background account for B to report, e.g. *Selling concert
-    tickets, DM me*
   - no reward rates or seasonal events set, so a Plastic item earns 10 points and 10 XP
-  - the reset also clears posts, likes, comments, follows, inbox entries, point reports and
-    moderation decisions, and puts the Classroom recycling challenge back to Active at 90/100
+  - the reset also clears A's and B's posts, likes, comments, follows and inbox entries, point
+    reports and moderation decisions, and puts the Classroom recycling challenge back to Active
+    at 90/100
+- [ ] Discover has the background posts from Mei Ling, Arjun, Hui Min and Daniel, and at the
+      bottom Kelvin's off-topic *Selling 2 concert tickets* post for B to report. Once it has
+      been hidden it has to be posted again before another run.
 - [ ] A and B have a display name (You → Edit) and a verified email.
 - [ ] A's notification settings are at their defaults (You → Settings → Notifications: first
       two switches on).
@@ -146,7 +148,8 @@ administrator checks the organisation's evidence before it counts."
 **A:** go to **Find**, open **Demo recycling bin — NTU N4**, and click the flag icon. Choose
 **Bin is full**, type *Overflowing after lunch*, click **Send report**.
 
-**B:** open **Feed → Discover**, open the off-topic post Nick prepared, click the flag
+**B:** open **Feed → Discover**, scroll to the bottom and open Kelvin's *Selling 2 concert
+tickets* post, click the flag
 (**Report post**), choose **Not about recycling**, click **Send report**.
 
 Say: "Members keep the map and the community accurate. Each report goes to a different

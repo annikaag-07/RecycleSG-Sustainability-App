@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 
 import { api, toApiError, type BadgeProgress } from '@/shared/api';
 import { useAuth } from '@/shared/auth/AuthProvider';
 import { AppText, Banner, Button, Card, EmptyState, Header, Screen } from '@/shared/components';
 import { colors, spacing } from '@/shared/theme';
 import { closestBadge, defaultDescription, nextStep, progressText } from './badges';
+import { Medal } from './Medal';
 import { ProgressBar } from './ProgressBar';
 
 type Data = { badges: BadgeProgress[]; streak: number; verified: number; pending: number };
@@ -93,6 +93,21 @@ export default function CollectionUI() {
         </AppText>
       </View>
 
+      {badges.length > 0 && (
+        <View style={styles.shelf}>
+          {[...badges]
+            .sort((a, b) => Number(!a.earned_at) - Number(!b.earned_at) || a.id - b.id)
+            .map((b) => (
+              <View key={b.id} style={styles.cell}>
+                <Medal badge={b} earned={!!b.earned_at} size={72} />
+                <AppText variant="small" color={b.earned_at ? 'text' : 'textMuted'} style={styles.center} numberOfLines={2}>
+                  {b.name}
+                </AppText>
+              </View>
+            ))}
+        </View>
+      )}
+
       {error && (
         <Banner tone="warning" title="Couldn't refresh">
           {error}
@@ -154,12 +169,7 @@ export default function CollectionUI() {
 function BadgeHead({ badge: b, earned }: { badge: BadgeProgress; earned: boolean }) {
   return (
     <View style={styles.head}>
-      <Feather
-        name={earned ? 'award' : 'lock'}
-        size={22}
-        color={earned ? colors.success : colors.textFaint}
-        accessibilityLabel={earned ? 'Earned' : 'Not earned yet'}
-      />
+      <Medal badge={b} earned={earned} />
       <View style={styles.fill}>
         <AppText variant="bodyStrong">{b.name}</AppText>
         <AppText variant="small" color="textMuted">
@@ -176,4 +186,8 @@ const styles = StyleSheet.create({
   summary: { gap: spacing.xs },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   item: { gap: spacing.sm },
+  center: { textAlign: 'center' },
+  // Three across, like the mockups' badge grid: earned first, in colour.
+  shelf: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.lg },
+  cell: { width: '33.33%', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.xs },
 });
